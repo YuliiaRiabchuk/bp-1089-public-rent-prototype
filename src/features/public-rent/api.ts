@@ -127,8 +127,14 @@ export class PublicRentError extends Error {
 /**
  * `dataset` — только для прототипа: подставляется из `/o/<dataset>` и выбирает
  * демо-набор в моках. В проде адрес один и параметра нет.
+ *
+ * Префикс `BASE_URL` — тоже прототипный. На GitHub Pages сайт живёт не в корне,
+ * а в `/<repo>/`, и service worker MSW получает scope этой папки: запрос к
+ * корневому `/api/public/*` вышел бы за scope и уехал бы мимо моков в 404.
+ * Локально `BASE_URL` = `/`, то есть путь тот же, что в CRM.
  */
-const base = (dataset: string) => `/api/public/${encodeURIComponent(dataset)}`
+const base = (dataset: string) =>
+  `${import.meta.env.BASE_URL}api/public/${encodeURIComponent(dataset)}`
 
 async function unwrap<T>(res: Response): Promise<T> {
   if (res.ok) return (await res.json()) as T

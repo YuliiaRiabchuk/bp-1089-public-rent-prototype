@@ -13,23 +13,26 @@ import './styles/globals.css'
  * роутера немає — окремий проєкт заради одного екрана його не вартий, тому
  * набір демо-даних читається прямо з адреси.
  *
- * Підтримані форми (усі дають один результат):
- *   /            → demo
- *   /o           → demo
- *   /o/holiday   → holiday   ← так само, як у CRM
- *   /holiday     → holiday
- *   /#holiday    → holiday   ← запасний варіант для хостингу без SPA-rewrite
+ * Підтримані форми (усі дають один результат), шлях рахується від `BASE_URL` —
+ * на GitHub Pages сайт лежить у `/<repo>/`, а не в корені:
+ *   .../           → demo
+ *   .../o          → demo
+ *   .../o/holiday  → holiday   ← так само, як у CRM
+ *   .../holiday    → holiday
+ *   .../#holiday   → holiday   ← запасний варіант, якщо фолбек 404 не спрацює
  *
  * Невідомий ключ віддає `demo`, а не порожній екран: посилання їздять у чатах
  * і псуються, а демо має відкриватися завжди.
  */
 function resolveDataset(): string {
-  const fromPath = window.location.pathname
+  const path = window.location.pathname.startsWith(import.meta.env.BASE_URL)
+    ? window.location.pathname.slice(import.meta.env.BASE_URL.length)
+    : window.location.pathname
+  const segments = path
     .split('/')
     .filter(Boolean)
     .filter((s) => s !== 'o')
-  const fromHash = window.location.hash.replace(/^#\/?/, '')
-  const key = fromPath[0] ?? fromHash
+  const key = segments[0] ?? window.location.hash.replace(/^#\/?/, '')
   return key && key in PUBLIC_DATASETS ? key : 'demo'
 }
 

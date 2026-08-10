@@ -169,7 +169,13 @@ function hideCompany(ds: PublicDataset, payload: PublicRentPayload) {
     : null
 }
 
-const P = '/api/public/:dataset'
+/**
+ * Префикс путей. `BASE_URL` — прототипная добавка: на GitHub Pages сайт лежит в
+ * `/<repo>/`, service worker получает scope этой папки, и запрос к корневому
+ * `/api/public/*` ушёл бы мимо моков. Локально `BASE_URL` = `/` — путь ровно
+ * такой же, как в CRM. Клиент строит адрес тем же способом (`api.ts`).
+ */
+const P = `${import.meta.env.BASE_URL}api/public/:dataset`
 
 function findDataset(params: Record<string, unknown>) {
   return PUBLIC_DATASETS[params.dataset as string]
