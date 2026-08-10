@@ -1,0 +1,1268 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+
+/**
+ * BP Space — design tokens.
+ * Source: design-guidelines/budprokat-mvp/project/styles.css (Claude Design handoff).
+ * Tailwind v4 CSS-first config — see ADR-0013 / docs/stack.md.
+ */
+@theme {
+  --color-bg: #fafafa;
+  --color-canvas: #f5f5f4;
+  --color-card: #ffffff;
+  /* Shell surface: the darker mat that sits behind the rounded content
+     card and matches the sidebar background — creates a subtle frame
+     around the workspace. */
+  --color-shell: oklch(0.94 0 0);
+  --color-border: #e1ddd9;
+  --color-border-strong: #cfcbc6;
+  /* Interactive border states for input-like surfaces (Input, Textarea,
+   * combobox triggers, popover search fields). Kept light by design —
+   * hover = subtle hint, focus = denser line, no ring/halo. */
+  --color-border-hover: color-mix(in oklab, #0c0a09 25%, transparent);
+  --color-border-focus: color-mix(in oklab, #0c0a09 50%, transparent);
+  --color-fg: #0c0a09;
+  --color-fg-2: #292524;
+  --color-muted: #f5f5f4;
+  --color-muted-fg: #78716c;
+  --color-subtle: #a8a29e;
+
+  --color-primary: #0c0a09;
+  --color-primary-fg: #fafaf9;
+
+  --color-accent: oklch(0.55 0.13 250);
+  --color-accent-soft: oklch(0.96 0.02 250);
+  /* Hover-стейт выбранной строки реестра: ЕДВА темнее `accent-soft` (юзер
+   * 17.06 — прежний 0.92/0.04 читался слишком тёмным поверх голубого
+   * выделения). Тонкий сдвиг L/C, без сырого OKLCH-литерала в className. */
+  --color-accent-soft-hover: oklch(0.945 0.025 250);
+  --color-accent-fg: oklch(0.32 0.13 250);
+
+  --color-success: oklch(0.55 0.13 150);
+  --color-success-soft: oklch(0.96 0.04 150);
+  --color-success-fg: oklch(0.32 0.10 150);
+
+  --color-warning: oklch(0.65 0.14 70);
+  --color-warning-soft: oklch(0.96 0.04 80);
+  --color-warning-fg: oklch(0.42 0.12 60);
+
+  /* «Notice» = clean lemon-yellow. Hue 90 sits squarely in yellow territory
+   * (no orange drift, no green tint). Used for: contract-unsigned badge,
+   * contract card hero, and any other "action needed" surface where amber
+   * felt dirty. Solid fill (bg-notice) reads clearly yellow against black
+   * text (L 0.88 → contrast ~9:1 with fg). */
+  /* Amber-yellow: L 0.72 gives ~3:1 with white (passes WCAG AA for UI
+   * components / large text). Softer than mustard (0.60) while still
+   * reading clearly yellow. */
+  --color-notice: oklch(0.72 0.17 88);
+  --color-notice-soft: oklch(0.97 0.04 90);
+  --color-notice-fg: oklch(0.44 0.14 78);
+
+  --color-danger: oklch(0.58 0.20 28);
+  --color-danger-soft: oklch(0.96 0.03 25);
+  --color-danger-fg: oklch(0.42 0.18 28);
+
+  --color-violet: oklch(0.55 0.18 295);
+  --color-violet-soft: oklch(0.96 0.03 295);
+  --color-violet-fg: oklch(0.36 0.18 295);
+
+  /* «Info» = sunny yellow. Used by the warehouse RESERVED bucket so
+   * резерв reads visually distinct from RENTED (warning/orange) and the
+   * other status colors. Same OKLCH structure as the other semantics. */
+  --color-info: oklch(0.82 0.16 95);
+  --color-info-soft: oklch(0.96 0.05 95);
+  --color-info-fg: oklch(0.52 0.13 95);
+
+  /* «Teal» = responsible-manager / assignee identity. Hue 195 sits between
+   * success-green (150) and accent-blue (250) — deliberately distinct from the
+   * counterparty kinds (accent / violet / warning) and from the semantic
+   * states (success / danger), so a manager avatar never reads as a status or a
+   * counterparty. Same OKLCH structure; teal-fg (L 0.42) on teal-soft (L 0.96)
+   * clears AA. */
+  --color-teal: oklch(0.56 0.09 195);
+  --color-teal-soft: oklch(0.96 0.04 195);
+  --color-teal-fg: oklch(0.42 0.09 195);
+
+  /* Nomenclature kind tones — Notion-style pastels. Low-chroma so dense
+   * lists read uniform. One tone per kind used in KindBadge (col2 row
+   * cards), picker checkboxes, col3 preview header. Chroma kept ≤ 0.06
+   * to honor the T2 rule for chrome surfaces. */
+  --color-kind-single: var(--color-card);
+  --color-kind-single-fg: var(--color-fg);
+  --color-kind-single-ring: var(--color-border-strong);
+  /* COMPONENT → soft sand/beige (hue 75, very low chroma) — warm
+     neutral, distinct from lavender + sky-blue, no danger/success
+     overlap. */
+  --color-kind-component: oklch(0.93 0.03 75);
+  --color-kind-component-fg: oklch(0.42 0.08 75);
+  --color-kind-component-ring: oklch(0.86 0.05 75);
+  /* KIT_ELEMENT → soft lavender (hue 290) — distinct from neutral and
+     COMPONENT grey without inheriting the danger/red semantic of the
+     earlier peach. */
+  --color-kind-element: oklch(0.93 0.05 290);
+  --color-kind-element-fg: oklch(0.42 0.13 290);
+  --color-kind-element-ring: oklch(0.86 0.07 290);
+  /* CONSUMABLE → soft sky-blue (hue 230) — keeps it apart from the
+     success/green semantic the earlier sage carried. */
+  --color-kind-consumable: oklch(0.93 0.05 230);
+  --color-kind-consumable-fg: oklch(0.40 0.10 230);
+  --color-kind-consumable-ring: oklch(0.86 0.07 230);
+
+  /* Brand — Будпрокат CRM */
+  --color-brand-navy: #1a1f3a;
+  --color-brand-navy-2: #0f1428;
+  --color-brand-red: #e63946;
+  --color-brand-red-soft: oklch(0.96 0.04 25);
+
+  --radius: 8px;
+  --radius-sm: 6px;
+  --radius-lg: 12px;
+
+  --shadow-xs: 0 1px 0 rgba(15, 15, 15, 0.04);
+  --shadow-sm: 0 1px 2px rgba(15, 15, 15, 0.06);
+  --shadow-md:
+    0 4px 14px rgba(15, 15, 15, 0.06), 0 1px 2px rgba(15, 15, 15, 0.04);
+  --shadow-lg:
+    0 12px 30px rgba(15, 15, 15, 0.08), 0 2px 6px rgba(15, 15, 15, 0.04);
+
+  /* Floating surfaces (popover / dropdown / select / dialog / tooltip).
+   * Replaces hard 1px borders with a soft hairline ring + atmospheric
+   * shadow stack. The 1px ring (inset-shadow) keeps separation on light
+   * backgrounds; the diffuse drop shadow gives lift without a frame. */
+  --shadow-popover:
+    0 0 0 1px rgba(15, 15, 15, 0.04),
+    0 8px 24px -6px rgba(15, 15, 15, 0.10),
+    0 4px 8px -2px rgba(15, 15, 15, 0.05);
+  --shadow-dialog:
+    0 0 0 1px rgba(15, 15, 15, 0.04),
+    0 24px 64px -12px rgba(15, 15, 15, 0.18),
+    0 12px 24px -8px rgba(15, 15, 15, 0.10);
+
+  --font-sans:
+    'Inter', 'Onest', ui-sans-serif, system-ui, -apple-system,
+    'Segoe UI', sans-serif;
+  --font-mono:
+    'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* ─── Type scale (DESIGN.md 5 tiers) ───────────────────────────────
+   * Font-SIZE only — line-height & weight stay on the element. These
+   * replace bare `text-[Npx]` size literals 1:1; the codemod that
+   * introduced them must not change inherited leading. Tailwind v4
+   * emits `text-headline … text-mono` utilities. Band is 11–17px;
+   * display sizes ≥20px remain local one-offs. `text-mono` is the 11px
+   * tier name from DESIGN.md (size only — pair with `font-mono` for
+   * actual monospace). Enforced going forward by the no-arbitrary
+   * Tailwind guard (BP-372). See `.claude/rules/fe-design.md` (T1). */
+  --text-headline: 17px;
+  --text-title: 15px;
+  --text-body: 13px;
+  --text-label: 11.5px;
+  --text-mono: 11px;
+
+  /* ─── Neutral chrome rungs (below shell 0.94) + brand-hero inverse text ──
+   * Replaces raw `oklch(0.9x 0 0)` greys scattered across chrome and the raw
+   * inverse-text greys on the brand-navy login/pending hero (BP-372 #9). */
+  --color-shell-hover: oklch(0.92 0 0);
+  --color-shell-active: oklch(0.9 0 0);
+  --color-on-brand: oklch(0.98 0 0);
+  --color-on-brand-2: oklch(0.95 0 0);
+  --color-on-brand-muted: oklch(0.75 0 0);
+  --color-on-brand-subtle: oklch(0.7 0 0);
+
+  /* ─── z-index layers + control/icon sizes (BP-372 #24). Tailwind v4 has no
+   * z-index/size theme namespace, so these values feed the @utility blocks
+   * defined just below the @theme block. */
+  --z-overlay: 60;
+  --z-tooltip: 100;
+  --size-control: 26px;
+  --size-icon: 15px;
+
+  /* ─── shadcn token aliases ───────────────────────────────────────
+   * shadcn primitives (popover/dialog/dropdown/select/etc.) reference
+   * a fixed token vocabulary (background, foreground, popover, ring,
+   * destructive, …). Map them to BP Space tokens so the primitives
+   * inherit the project palette without duplicating values. Keeping
+   * aliases means future palette tweaks land in one place above.
+   */
+  --color-background: var(--color-bg);
+  --color-foreground: var(--color-fg);
+  --color-card-foreground: var(--color-fg);
+  --color-popover: var(--color-card);
+  --color-popover-foreground: var(--color-fg);
+  --color-muted-foreground: var(--color-muted-fg);
+  --color-accent-foreground: var(--color-accent-fg);
+  --color-primary-foreground: var(--color-primary-fg);
+  --color-secondary: var(--color-muted);
+  --color-secondary-foreground: var(--color-fg);
+  --color-destructive: var(--color-danger);
+  --color-destructive-foreground: var(--color-danger-fg);
+  --color-input: var(--color-border);
+  --color-ring: var(--color-accent);
+  --color-sidebar: var(--color-shell);
+  --color-sidebar-foreground: var(--color-fg);
+  --color-sidebar-border: var(--color-border);
+
+  /* ─── motion easing tokens ─────────────────────────────────────
+   * Tailwind v4 picks these up as `ease-*` utilities automatically
+   * (`ease-expo-out`, `ease-snappy`, …). Reference inside @keyframes
+   * via `var(--ease-…)` so CSS-only animations and Tailwind utility
+   * classes share the same curve names.
+   *
+   *   `expo-out`  — lands precisely, no overshoot. Premium UI default
+   *                 for entering elements (Linear / Arc feel).
+   *   `expo-in`   — accelerates fast, leaves abruptly. Use for exit.
+   *   `expo-in-out` — punchy both directions. Page-level transitions.
+   *   `snappy`    — Vercel's «snappy» curve, close to expo-out but
+   *                 a touch more aggressive at the start.
+   *   `fluid`     — Vercel's «fluid» curve, gentler than snappy.
+   *   `quart-out` — easeOutQuart. Softer tail than `expo-out`; used by
+   *                 the master-detail drawers (slide-in/out) so motion
+   *                 settles without the abrupt finish of `expo-out`.
+   */
+  --ease-expo-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-expo-in: cubic-bezier(0.7, 0, 0.84, 0);
+  --ease-expo-in-out: cubic-bezier(0.87, 0, 0.13, 1);
+  --ease-snappy: cubic-bezier(0.2, 0, 0, 1);
+  --ease-fluid: cubic-bezier(0.3, 0, 0, 1);
+  --ease-quart-out: cubic-bezier(0.165, 0.84, 0.44, 1);
+}
+
+/* Semantic z-index layers + control/icon sizes (BP-372 #24). Tailwind v4 has
+ * no z-index/size theme namespace, so expose these as custom utilities. The
+ * trivial local sticky z-indexes (z-[1..9], the calendar's z-45..48 band) are
+ * intentionally left as local stacking — they're not cross-component layers. */
+@utility z-overlay { z-index: var(--z-overlay); }
+@utility z-tooltip { z-index: var(--z-tooltip); }
+@utility size-control { width: var(--size-control); height: var(--size-control); }
+@utility h-control { height: var(--size-control); }
+@utility min-h-control { min-height: var(--size-control); }
+@utility size-icon { width: var(--size-icon); height: var(--size-icon); }
+@utility h-icon { height: var(--size-icon); }
+@utility min-w-icon { min-width: var(--size-icon); }
+
+/* Мягкий пульс «значение поменялось» (срок резерва: перенос на завтра) —
+ * scale 1 → 1.02 → 1, без появления/сдвига. */
+@keyframes value-pulse {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.02); }
+  100% { transform: scale(1); }
+}
+@utility animate-value-pulse {
+  animation: value-pulse 320ms var(--ease-snappy, ease-out);
+}
+
+html {
+  /* Block faux bold/italic — only render glyphs that actually shipped in
+     the font file. Eliminates the synthetic ghosting on retina screens. */
+  font-synthesis: none;
+  /* НЕ ставим `text-rendering: optimizeLegibility` — на Windows Chrome он
+     переводит текст в деградированный (grayscale/без сглаживания) путь
+     рендера → рваные, «пиксельные» края (жалоба Windows-Chrome). Кернинг и
+     лигатуры и так включены на `body` через font-feature-settings
+     ('kern'/'liga'/'calt'), поэтому дефолтный `auto` ничего не теряет и
+     возвращает нормальное сглаживание на Windows. */
+  text-rendering: auto;
+  /* BP-604 — приложение = фиксированный h-screen shell, все страницы скроллятся
+     внутри своих контейнеров. Любой портал/бейдж, вылезший за вьюпорт, раньше
+     заставлял окно скроллиться → второй (внешний) скроллбар рядом со скроллом
+     контента (виден на Windows с классическими скроллбарами). `clip` запрещает
+     скролл документа целиком, не создавая scroll-контейнер. */
+  overflow: clip;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 1.45;
+  letter-spacing: -0.005em;
+  font-kerning: normal;
+  font-feature-settings:
+    'kern' 1,
+    'liga' 1,
+    'calt' 1;
+  background: var(--color-bg);
+  color: var(--color-fg);
+  /* macOS retina: antialiased keeps the same visual weight as design
+     mocks (Figma exports with smoothing). On Windows ClearType is the
+     OS default — we leave it untouched. */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Numerical columns (currency, tables) — keep tabular metrics. */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings:
+    'kern' 1,
+    'tnum' 1;
+}
+
+::placeholder {
+  color: var(--color-muted-fg);
+}
+
+/* ───────────────────────────────────────────────────────────────
+ * Interactive cursor (BP-418). The browser UA default for <button> is
+ * `default`, so clickable controls across the app (new rent / reserve,
+ * task «создать», counterparties / catalog «создать», movements
+ * «оформить», …) never showed the hand pointer. Restore `pointer` on
+ * every enabled button and role="button" trigger app-wide — one rule
+ * instead of a class on each callsite.
+ *
+ * Declared inside `@layer base` on purpose: it must sit BELOW Tailwind's
+ * `utilities` layer so per-element cursor utilities still win — e.g. the
+ * drag handles / kanban cards that use `cursor-grab` (RowDragHandle,
+ * TaskKanbanCard) keep their grab cursor, and `cursor-not-allowed` /
+ * `cursor-wait` overrides are unaffected. Disabled controls keep the
+ * default cursor. Hover highlight already lives in the Button variants.
+ * ─────────────────────────────────────────────────────────────── */
+@layer base {
+  button:not(:disabled):not([aria-disabled='true']),
+  [role='button']:not([aria-disabled='true']) {
+    cursor: pointer;
+  }
+}
+
+/* ───────────────────────────────────────────────────────────────
+ * Drawer entrance — slide from the right + fade. Used by master-detail
+ * drawers (reserves, calls, tasks). Composes with Tailwind class.
+ * Curve is easeOutQuart so the panel settles without a soft tail.
+ * ─────────────────────────────────────────────────────────────── */
+@keyframes drawer-slide-in {
+  0% {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  100% {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes drawer-slide-out {
+  0% {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+}
+
+.animate-drawer-in {
+  animation: drawer-slide-in 220ms var(--ease-quart-out);
+  will-change: transform, opacity;
+}
+
+/* Reduced-motion: the drawer appears instantly, no slide (every other
+ * bespoke animation in this file carries the same guard). */
+@media (prefers-reduced-motion: reduce) {
+  .animate-drawer-in,
+  .animate-drawer-out {
+    animation: none;
+  }
+}
+
+/* ───────────────────────────────────────────────────────────────
+ * Incoming-call ring pulse — a single expanding hairline pinned to
+ * the bottom edge of the accent drawer header, signalling an
+ * UNANSWERED ringing call. Composited (opacity + transform only).
+ * Honours reduced-motion: collapses to a static 50%-opacity hairline
+ * — the header accent fill + «ждёт Nс» timer still carry the signal.
+ * ─────────────────────────────────────────────────────────────── */
+@keyframes call-ring-pulse {
+  0% {
+    opacity: 0.9;
+    transform: scaleX(0.2);
+  }
+  100% {
+    opacity: 0;
+    transform: scaleX(1);
+  }
+}
+
+.call-ring-pulse {
+  transform-origin: left center;
+  animation: call-ring-pulse 1.6s var(--ease-expo-out) infinite;
+  will-change: transform, opacity;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .call-ring-pulse {
+    animation: none;
+    opacity: 0.5;
+    transform: none;
+  }
+}
+
+/* ───────────────────────────────────────────────────────────────
+ * Page entrance — the app-wide fade + soft rise every main page mounts
+ * with (originally the Каталог «preview» motion, now the shared page-enter).
+ * Defined in ONE place; a page opts in via the `<PageEnter>` component
+ * (`components/PageEnter.tsx`), never by re-adding this class ad-hoc.
+ * Curve is expo-out so motion arrives, settles, never overshoots.
+ * `prefers-reduced-motion` respected below: instant render, no anim.
+ *
+ * NOTE: `will-change: transform` establishes a containing block for
+ * `position: fixed` descendants (and persists while the class is on the
+ * element). That's harmless here ONLY because every overlay/drawer/dropdown
+ * portals out to `document.body` or an AppLayout slot outside `<main>`
+ * (ADR-0023). Don't render a raw inline `position: fixed` node inside a
+ * PageEnter root — it would anchor to the page box, not the viewport.
+ * ─────────────────────────────────────────────────────────────── */
+@keyframes page-enter {
+  0% {
+    opacity: 0.7;
+    transform: translateY(2px) scale(0.995);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.animate-page-enter {
+  animation: page-enter 220ms var(--ease-expo-out);
+  transform-origin: 50% 100%;
+  will-change: transform, opacity;
+}
+
+/* ───────────────────────────────────────────────────────────────
+ * Rents registry — equipment hover-popover item cards. Each card
+ * rises + fades on a per-item `--stagger` delay so the list reads
+ * as cascading out of the trigger. Curve is `expo-out` (lands, no
+ * overshoot); only transform/opacity → composited. The popover
+ * shell already fades/zooms via `tw-animate`; this is the inner
+ * stagger. `prefers-reduced-motion`: no animation, instant render.
+ * ─────────────────────────────────────────────────────────────── */
+@keyframes equip-card-rise {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-equip-card {
+  animation: equip-card-rise 220ms var(--ease-expo-out) both;
+  animation-delay: var(--stagger, 0ms);
+  will-change: transform, opacity;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-equip-card {
+    animation: none;
+  }
+}
+
+/* ───────────────────────────────────────────────────────────────
+ * Component-builder cart — a freshly picked row fades + rises into the
+ * cart when «+» adds it (issue #758). One-shot on mount, so only the
+ * newly-added row replays it; existing rows keep their DOM and stay
+ * put. Curve is expo-out (lands, no overshoot); transform/opacity only
+ * → composited. `prefers-reduced-motion`: instant render, no anim.
+ * ─────────────────────────────────────────────────────────────── */
+@keyframes cart-row-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.animate-cart-row-in {
+  animation: cart-row-in 220ms var(--ease-expo-out) both;
+  transform-origin: 50% 0;
+  will-change: transform, opacity;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-cart-row-in {
+    animation: none;
+  }
+}
+
+/* Cart row removal — the mirror of `cart-row-in`. When «×» deletes a row
+ * it collapses its own height + fades + falls, so the rows below slide up
+ * to fill the gap instead of snapping. The row delays its real unmount
+ * until `animationend` (or a fallback timer). expo-out front-loads the
+ * collapse so the `max-height` head-room clears fast. `prefers-reduced-
+ * motion`: the row commits removal instantly (no animation, see the hook). */
+@keyframes cart-row-out {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    max-height: 5rem;
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.97);
+    max-height: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+  }
+}
+
+.animate-cart-row-out {
+  animation: cart-row-out 200ms var(--ease-expo-out) forwards;
+  overflow: hidden;
+  pointer-events: none;
+  will-change: max-height, transform, opacity;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-cart-row-out {
+    animation: none;
+  }
+}
+
+/* Picker (central catalog list) row collapse/expand — the VIRTUALIZED variant
+ * of cart-row-out/in (BP-477). CRITICAL: these must NOT animate `transform`.
+ * Each picker <li> is absolutely positioned via inline `transform:
+ * translateY(virtualStart)`; a CSS animation touching `transform` OVERRIDES
+ * that inline value (animations beat inline styles), teleporting the row to
+ * translateY(0) — the list top — for the animation's duration. That's the
+ * «текст промелькивает вверху под группой» flash (visible only unscrolled,
+ * where translateY(0) sits under the sticky header). So we animate only
+ * `max-height` + `opacity`; the virtualizer re-measures the shrinking/growing
+ * height and slides the rows below in/out. */
+@keyframes picker-row-collapse {
+  from {
+    opacity: 1;
+    max-height: 5rem;
+  }
+  to {
+    opacity: 0;
+    max-height: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+  }
+}
+
+.animate-picker-row-collapse {
+  animation: picker-row-collapse 200ms var(--ease-expo-out) forwards;
+  overflow: hidden;
+  pointer-events: none;
+  will-change: max-height, opacity;
+}
+
+/* Возврат позиции из корзины обратно в список — раскрытие по высоте (юзер),
+ * зеркало collapse. Без `forwards`: по концу max-height возвращается к
+ * натуральной высоте, без перманентного капа (не клипит высокие строки). */
+@keyframes picker-row-expand {
+  from {
+    opacity: 0;
+    max-height: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+  }
+  to {
+    opacity: 1;
+    max-height: 5rem;
+  }
+}
+
+.animate-picker-row-expand {
+  animation: picker-row-expand 220ms var(--ease-expo-out);
+  overflow: hidden;
+  will-change: max-height, opacity;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-picker-row-collapse,
+  .animate-picker-row-expand {
+    animation: none;
+  }
+}
+
+/* Reserves board (kanban) entrance — slide in from the right. Mirrors
+ * the master-detail drawer motion vocabulary so the same direction
+ * cue applies across views that arrive sideways. */
+@keyframes board-slide-in {
+  0% {
+    opacity: 0;
+    transform: translateX(12px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.animate-board-slide-in {
+  animation: board-slide-in 260ms var(--ease-expo-out);
+  will-change: transform, opacity;
+}
+
+/* Number tickers in column headers (e.g. count). Brief subtle pulse
+ * so the user notices the change without distracting motion. */
+@keyframes count-pulse {
+  0% {
+    opacity: 0.4;
+    transform: scale(0.95);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-count-pulse {
+  animation: count-pulse 220ms cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: opacity, transform;
+}
+
+/* Prefill tint-pulse (#593): a field auto-filled from an iframe-request flashes
+ * an `accent-soft` wash once on mount, then settles to transparent — a quiet
+ * «this came from the заявка» acknowledgement, not a persistent highlight. The
+ * wash holds briefly so it registers, then fades on `ease-expo-out` so it lands
+ * without overshoot (~200ms hold + fade, reads as one quick pulse). One-shot (no
+ * `infinite`); disabled under `prefers-reduced-motion` — the chip then carries
+ * the cue alone. */
+@keyframes prefill-tint {
+  0% {
+    background-color: var(--color-accent-soft);
+  }
+  30% {
+    background-color: var(--color-accent-soft);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+.animate-prefill-tint {
+  animation: prefill-tint 700ms var(--ease-expo-out);
+  will-change: background-color;
+}
+
+/* «Значение изменилось не твоими руками» (BP-882): сумма части приёма, которую
+ * пересчитала раскладка (сосед забрал деньги, включили зачёт), и итог «К оплате»
+ * в шапке. Тот же язык, что `prefill-tint`, но не одноразовый импульс, а ДВЕ
+ * фазы, потому что менеджер вводит сумму глядя на клавиатуру:
+ *
+ *   hold — заливка встаёт с первым же нажатием и ДЕРЖИТСЯ, пока значение ездит.
+ *          Анимации нет: держать нечего анимировать, а рестарт на каждую цифру
+ *          превращал подсветку в стробоскоп, где она не успевала доиграть.
+ *   fade — гаснет только когда ввод прекратился, и уже спокойно.
+ *
+ * Под `prefers-reduced-motion` фаза `hold` остаётся как есть (это не движение, а
+ * единственный сигнал об изменении), затухание становится коротким. */
+.value-changed-hold {
+  background-color: var(--color-accent-soft);
+}
+
+@keyframes value-changed-fade {
+  from {
+    background-color: var(--color-accent-soft);
+  }
+  to {
+    background-color: transparent;
+  }
+}
+
+.value-changed-fade {
+  animation: value-changed-fade 900ms var(--ease-expo-out) forwards;
+  will-change: background-color;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .value-changed-fade {
+    animation-duration: 300ms;
+  }
+}
+
+/* Timeline connector «draw-down»: the rail line grows top→bottom when the
+ * next step reveals (rent form §2 contract flow). Pairs with the step's
+ * slide-in so the spine reads as drawing toward the new node. The
+ * `translateX(-50%)` is baked in so the keyframe keeps the line centred
+ * (the resting line centres itself with `-translate-x-1/2`, also a transform). */
+@keyframes draw-down {
+  from {
+    transform: translateX(-50%) scaleY(0);
+  }
+  to {
+    transform: translateX(-50%) scaleY(1);
+  }
+}
+
+.animate-draw-down {
+  transform-origin: top;
+  animation: draw-down 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-draw-down {
+    animation: none;
+  }
+}
+
+/* ───────────────────────────────────────────────────────────────
+ * Calendar timeline — motivated micro-motion. Every animation here
+ * communicates a state change, never decoration, and rides ONLY
+ * transform / opacity so it composites off the main thread (the
+ * timeline is a virtualized infinite-scroll canvas — see
+ * `.claude/rules/performance.md`). All collapse to nothing under
+ * `prefers-reduced-motion` (block at the bottom of this group).
+ * ─────────────────────────────────────────────────────────────── */
+
+/* Group reveal — the segment band a disclosure just uncovered (group expand,
+ * or a regroup) rises + fades in, so the eye reads it as «contents of the group
+ * you just opened» flowing out from under the header. Applied per-band (one
+ * cheap composite each) and ONLY to bands newly revealed this commit — never on
+ * scroll/zoom — so it communicates the state change without shimmering on
+ * navigation. The view gates the class; `both` holds the start frame before
+ * paint so there's no flash of the final position. */
+@keyframes timeline-rows-in {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-timeline-rows-in {
+  animation: timeline-rows-in 190ms var(--ease-expo-out) both;
+  will-change: transform, opacity;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-timeline-rows-in {
+    animation: none;
+  }
+}
+
+/* ───────────────────────────────────────────────────────────────
+ * Rent-detail inline editors — reduced-motion guard.
+ *
+ * The expanding editors of the rent-detail card (срок / скидка /
+ * доп.начисление / приём оплаты) share one enter animation via the
+ * tw-animate-css `animate-in fade-in-0 slide-in-from-top-1` utilities
+ * (see `detail/body/InlineEditorShell.tsx`). tw-animate-css does NOT
+ * self-disable under `prefers-reduced-motion`, and a `motion-reduce:`
+ * utility loses the cascade to its own `animate-in` rule. This guard —
+ * placed AFTER `@import 'tw-animate-css'` so it wins by source order —
+ * collapses both the animation and the start-frame translate so the
+ * editor renders instantly in place, no slide. Scoped to the shell's
+ * `data-inline-editor` hook; nothing else app-wide is touched.
+ * ─────────────────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  [data-inline-editor] {
+    animation: none !important;
+    --tw-enter-translate-y: 0 !important;
+    --tw-enter-opacity: 1 !important;
+  }
+}
+
+/* PCW collapsible sections (`PcwSection`) — the `animate-collapsible-*` height
+ * slide does not self-disable under reduced-motion; collapse it to instant.
+ * After `@import 'tw-animate-css'`, so it wins by source order. */
+@media (prefers-reduced-motion: reduce) {
+  [data-pcw-collapsible] {
+    animation: none !important;
+  }
+}
+
+/* Stabilise resize: isolate column layout so dragging the divider
+ * doesn't trigger a full content reflow. `contain: layout paint`
+ * scopes ancestor layout/paint to the panel; `will-change: width`
+ * promotes it to a compositor layer during the drag. */
+.catalog-panel {
+  contain: layout paint;
+}
+
+/* Promote the columns to a compositor layer ONLY while a divider is
+   actively dragged — react-resizable-panels stamps
+   `data-resize-handle-active` on the live handle (same hook the
+   transition-suppression below uses). The old `.catalog-panel-resizing`
+   class this replaced was dead — never applied from JS, so the
+   compositor hint never fired during a resize. Scoping `will-change`
+   to the drag (vs. always-on) avoids holding a permanent layer. */
+[data-panel-group]:has([data-resize-handle-active]) .catalog-panel {
+  will-change: width;
+}
+
+/* Анимация авто-расширения колонки дерева ПОД саджест-дропдаун (на открытии).
+   flex-grow-переход, как у каталожного preview-слайда. Гасится во время
+   ручного drag хэндла (:has([data-resize-handle-active])), чтобы колонка не
+   лагала за курсором, и под prefers-reduced-motion. user 06.07.
+   ВАЖНО: duration/easing ОБЯЗАНЫ совпадать с `.catalog-list-panel`/
+   `.catalog-preview-panel` (220ms/ease-quart-out) — при авто-расширении дерево
+   растёт, а list/preview ужимаются встречно; flex-grow соседей должен в сумме
+   держать константу. Рассинхрон длительностей (было 240 vs 220) рвёт эту сумму
+   на промежуточных кадрах → граница дерево↔список дёргается и «мигает» бордер
+   у ресайз-хэндла (user 06.07). */
+.suggest-align-panel {
+  transition: flex-grow 220ms var(--ease-quart-out);
+}
+[data-panel-group]:has([data-resize-handle-active]) .suggest-align-panel {
+  transition: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .suggest-align-panel {
+    transition: none;
+  }
+}
+
+/* Synchronised slide for the collapsible preview panel.
+ *
+ * Both the preview's and the list's flex-grow are transitioned over
+ * 220ms so they animate together (the list absorbs the preview's
+ * freed space on collapse and releases it on open via
+ * `listPanel.resize()` from the route component). Cat's stored
+ * flex-grow never changes, so cat is rock-stable throughout the
+ * motion.
+ *
+ * `:has([data-resize-handle-active])` suppresses the transition
+ * while a resize handle is being dragged — the lib stamps that
+ * attribute on the active handle, so the panels don't lag the
+ * cursor during a manual drag-resize.
+ *
+ * The preview's inner content is locked to the destination pixel
+ * width via the `--preview-content-width` custom property set from
+ * JS during the animation. This keeps the inner layout from
+ * reflowing as the panel's width changes — the laid-out content
+ * just slides in from the right edge because the panel's left edge
+ * sweeps leftward while the content stays anchored at its full
+ * width (and the panel's `overflow: hidden`, set inline by the lib,
+ * clips the outside-panel portion). */
+.catalog-preview-panel,
+.catalog-list-panel {
+  transition: flex-grow 220ms var(--ease-quart-out);
+}
+
+/* List-panel owns the visible 1px dividers on both sides (left ↔ cat,
+   right ↔ preview) via inset box-shadow instead of the resize-handle's
+   bg-color. Putting the divider INSIDE the panel lets descendants
+   (e.g. the active nomenclature row's ring-inset) paint over it at
+   the row's y-range — no more «doubled» 1px line between the handle
+   and the row's left ring. The handles themselves stay 1px-wide and
+   resizable but render transparent. */
+.catalog-list-panel {
+  /* Left + right via inset box-shadow so the active row's ring-inset
+     can overpaint these 1px pixels at the row's y-range (no doubled
+     line between resize handle and row edge). */
+  box-shadow:
+    inset 1px 0 0 var(--color-border),
+    inset -1px 0 0 var(--color-border);
+}
+
+/* Header's opaque bg-card would otherwise hide the panel's L/R inset
+   shadow at header height. Mirror the L/R inset on the header itself
+   so the panel's vertical dividers stay continuous through the header
+   strip. */
+.catalog-list-panel header {
+  box-shadow:
+    inset 1px 0 0 var(--color-border),
+    inset -1px 0 0 var(--color-border);
+}
+
+/* Same story for the sticky group headers (склад/статус/категория): their
+   opaque `bg-muted` covers the panel's L/R inset dividers at the group row's
+   y-range, so the vertical border «пропадал на группах» in the catalog. Mirror
+   the same inset on the group-header row. Scoped to `.catalog-list-panel` so
+   the shared `GroupHeaderRow` (picker draws its own dividers) is untouched. */
+.catalog-list-panel .bp-group-header {
+  box-shadow:
+    inset 1px 0 0 var(--color-border),
+    inset -1px 0 0 var(--color-border);
+}
+
+[data-panel-group]:has([data-resize-handle-active]) .catalog-preview-panel,
+[data-panel-group]:has([data-resize-handle-active]) .catalog-list-panel {
+  transition: none;
+}
+
+/* Mount frame — react-resizable-panels writes inline flex-grow values
+   after the first paint (default size → autoSaveId-restored size).
+   With the transitions above, that snap animates and the catalog
+   column visibly «squeezes». Route adds `.catalog-anim-suspended` on
+   the group for the first frame and removes it after rAF, so the
+   intra-session preview-slide still animates but the page-open doesn't. */
+.catalog-anim-suspended .catalog-preview-panel,
+.catalog-anim-suspended .catalog-list-panel {
+  transition: none;
+}
+
+.catalog-preview-content {
+  height: 100%;
+  width: var(--preview-content-width, 100%);
+}
+
+/* ───────────────────────────────────────────────────────────────
+ * Photo skeleton shimmer — used by `<PhotoImage>` (feedback #245)
+ * while the underlying <img> is loading. A diagonal highlight band
+ * sweeps left→right over a `bg-muted` base, signalling «something
+ * is on its way» without the more aggressive `animate-pulse` step.
+ *
+ * Implementation: gradient pinned to a 200% background-size, then
+ * animate `background-position` from `200% 0` to `-200% 0` so the
+ * sheen passes through and exits cleanly. The base layer (the muted
+ * grey) is the element's own `background-color`, painted under the
+ * gradient — keeps the rest box neutral when the sheen is offscreen.
+ * Curve is linear so the perceived speed stays even across the pass.
+ *
+ * Honours `prefers-reduced-motion`: motion stops, the muted bg
+ * stays so the user still sees a placeholder block.
+ * ─────────────────────────────────────────────────────────────── */
+@keyframes photo-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+.animate-photo-shimmer {
+  background-color: var(--color-muted);
+  background-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    color-mix(in oklab, var(--color-fg) 6%, transparent) 50%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  background-repeat: no-repeat;
+  animation: photo-shimmer 1.4s linear infinite;
+  will-change: background-position;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-page-enter,
+  .animate-board-slide-in,
+  .animate-count-pulse,
+  .animate-prefill-tint {
+    animation: none;
+  }
+  .catalog-preview-panel,
+  .catalog-list-panel {
+    transition: none;
+  }
+  .animate-photo-shimmer {
+    animation: none;
+  }
+}
+
+.animate-drawer-out {
+  animation: drawer-slide-out 200ms cubic-bezier(0.55, 0, 0.45, 1) forwards;
+  will-change: transform, opacity;
+}
+
+/* Width handle for docked side-drawers (master-detail panels). A 12px
+   column (4px inner left pad + 8px hit target); the visible affordance is
+   a short rounded grabber pill on the pad's inner edge — NOT a full-height
+   line, which fought the panel's `rounded-xl` corners. Subtle at rest,
+   taller + darker on hover/drag. Vertical twin of the bottom drawer's
+   grabber. */
+.resize-handle {
+  position: absolute;
+  inset-block: 0;
+  width: 12px;
+  padding-left: 4px;
+  box-sizing: border-box;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.resize-handle::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 4px;
+  height: 40px;
+  width: 4px;
+  border-radius: 9999px;
+  background-color: var(--color-muted-fg);
+  transform: translateY(-50%);
+  /* Невидим в покое — грип проявляется анимацией ТОЛЬКО на ховер/драг
+     (юзер 17.06). */
+  opacity: 0;
+  transition:
+    opacity 150ms ease,
+    background-color 150ms ease,
+    height 150ms ease;
+}
+
+.resize-handle:hover::before,
+.resize-handle:active::before,
+.resize-handle.is-dragging::before {
+  height: 48px;
+  opacity: 1;
+}
+
+/* Пустая таблица реестра (единственная строка tbody — empty/loading-ячейка с
+   colspan) не раздувается сохранёнными col-ширинами шире вьюпорта — занимает
+   ровно 100% (user 24.07). Ловит паттерн «tr:only-child > td[colspan]» во всех
+   реестровых таблицах разом. */
+table.w-max:has(> tbody > tr:only-child > td[colspan]) {
+  width: 100%;
+}
+
+/* Slim scrollbar that lives inside rounded cards. WebKit + Firefox. */
+.scrollbar-card {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border-strong) transparent;
+}
+.scrollbar-card::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+.scrollbar-card::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scrollbar-card::-webkit-scrollbar-thumb {
+  background: var(--color-border-strong);
+  border-radius: 999px;
+  border: 2px solid var(--color-card);
+  background-clip: padding-box;
+}
+.scrollbar-card::-webkit-scrollbar-thumb:hover {
+  background-color: var(--color-subtle);
+  background-clip: padding-box;
+}
+
+/* ---------------------------------------------------------------
+ * scroll-fade: dissolve the top/bottom edges of a vertical scroll
+ * container as content runs past them (shadcn `scroll-fade` util,
+ * https://ui.shadcn.com/docs/utils/scroll-fade). Pure CSS
+ * scroll-driven — the top edge is crisp at rest, both edges fade
+ * while scrolling, the bottom sharpens at the end. The mask
+ * dissolves the content itself, so it adapts to any background and
+ * never needs an overlay div. Browsers without scroll-driven
+ * animations fall back to a static fade on both edges (harmless).
+ * --------------------------------------------------------------- */
+@property --sf-t {
+  syntax: '<number>';
+  inherits: false;
+  initial-value: 1;
+}
+@property --sf-b {
+  syntax: '<number>';
+  inherits: false;
+  initial-value: 1;
+}
+.scroll-fade-y {
+  --sf-size: 1.75rem;
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    rgb(0 0 0 / var(--sf-t)) 0,
+    #000 var(--sf-size),
+    #000 calc(100% - var(--sf-size)),
+    rgb(0 0 0 / var(--sf-b)) 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    rgb(0 0 0 / var(--sf-t)) 0,
+    #000 var(--sf-size),
+    #000 calc(100% - var(--sf-size)),
+    rgb(0 0 0 / var(--sf-b)) 100%
+  );
+}
+@supports (animation-timeline: scroll()) {
+  .scroll-fade-y {
+    animation: sf-fade-t linear both, sf-fade-b linear both;
+    animation-timeline: scroll(self), scroll(self);
+    animation-range: 0 var(--sf-size), calc(100% - var(--sf-size)) 100%;
+  }
+  @keyframes sf-fade-t {
+    from {
+      --sf-t: 1;
+    }
+    to {
+      --sf-t: 0;
+    }
+  }
+  @keyframes sf-fade-b {
+    from {
+      --sf-b: 0;
+    }
+    to {
+      --sf-b: 1;
+    }
+  }
+}
+
+/* ---------------------------------------------------------------
+ * macOS-style overlay scrollbar for native overflow containers.
+ *
+ * Thumb is transparent at rest (no track, no hover-show). A global
+ * scroll listener in `main.tsx` adds `data-scrolling="true"` on the
+ * scrolled element while it scrolls, removes it after a short
+ * delay — that toggles the thumb between invisible and visible with
+ * an opacity tween in both directions.
+ *
+ * Track always reserves space via `scrollbar-gutter: stable` on the
+ * common page-shell wrappers; here we only style the visuals.
+ * --------------------------------------------------------------- */
+:root {
+  --mac-scrollbar-thumb: color-mix(in oklab, var(--color-fg) 35%, transparent);
+}
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+  background: transparent;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background-color: transparent;
+  border-radius: 999px;
+  transition: background-color 220ms ease;
+}
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}
+[data-scrolling="true"]::-webkit-scrollbar-thumb {
+  background-color: var(--mac-scrollbar-thumb);
+}
+/* Firefox — no per-event toggle available; keep it subtle by default. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+[data-scrolling="true"] {
+  scrollbar-color: var(--mac-scrollbar-thumb) transparent;
+}
+/* `.scrollbar-card` keeps its own styling — opt-out of the global rule. */
+.scrollbar-card::-webkit-scrollbar-thumb,
+[data-scrolling="true"].scrollbar-card::-webkit-scrollbar-thumb {
+  background-color: var(--color-border-strong);
+  background-clip: padding-box;
+  border: 2px solid var(--color-card);
+}
+
+
+/* Google Maps (warehouse «Склады» map): suppress the focus border Google draws
+   on the map container — it leaked out as a stray orange rounded outline behind
+   the locator panel. Map canvas needs no keyboard-focus ring. */
+.gm-style iframe + div {
+  border: none !important;
+}
+.gm-style [tabindex] {
+  outline: none !important;
+}
+/* Fullscreen toggle: on a vector (mapId) map the `fullscreenControl={false}`
+   prop is ignored by the JS API, so kill the control here. The other default
+   controls (satellite/terrain switcher, Street View pegman, tilt/rotate) are
+   dropped via `disableDefaultUI`; only zoom is kept. */
+.gm-style .gm-fullscreen-control {
+  display: none !important;
+}
+/* Branch-stock InfoWindow (поп-ап маркера): поджимаем хром Google, чтобы наша
+   тематическая карточка сидела вплотную (заголовок уже скрыт headerDisabled). */
+.gm-style .gm-style-iw-c {
+  padding: 10px 12px !important;
+  border-radius: 12px !important;
+  box-shadow:
+    0 6px 20px -4px rgb(0 0 0 / 0.18),
+    0 2px 6px -2px rgb(0 0 0 / 0.12) !important;
+}
+.gm-style .gm-style-iw-d {
+  overflow: hidden !important;
+}
+
+/* BP-460 — resizable data-tables (колонко-управляемый рендер). ДО «заморозки»
+   (нет `data-fixed`) таблица держит свою исходную ширину (`w-full`/`w-max`/
+   `min-w-[…]`) и стоит в auto-layout — ресайз одной колонки сперва фиксирует все
+   (`startResize`), поэтому растягивания соседей не бывает и слэк снимать не надо.
+
+   После «заморозки» (все колонки получили пользовательскую ширину,
+   `<colgroup data-fixed>`) — fixed layout: ширина `<col>` авторитетна, ресайз
+   одной колонки меняет ТОЛЬКО её, соседи стоят.
+   Fixed-алгоритму нужна ОПРЕДЕЛЁННАЯ ширина (`width: max-content` браузер
+   игнорирует — откат на auto): `width: 0` + min-width в px, который синкает
+   `syncFrozenTableMinWidth` (BP-795) → таблица = ровно сумма явных колонок.
+   CSS-вариант `min-width: max-content` не подходит: Gecko считает max-content
+   fixed-таблицы по КОНТЕНТУ ячеек, а не по `<col>`, — таблица взрывалась до
+   мегапикселей и все колонки расползались (BP-795).
+
+   НЕ `width: 100%` (стояло с BP-461 против «мёртвой полосы» справа): в
+   реестре аренд таблица живёт в `w-max`-обёртке, которая меряется ПО
+   таблице, — процентная ширина в content-sized родителе циклична, Chrome
+   раздувал связку до клампа ~666667px, и ресайз «не работал» (user 26.07).
+   Мёртвую полосу теперь исключает зеркальная компенсация в `startResize`:
+   сумма колонок при драге ПОСТОЯННА (дельта тянутой уходит в последнюю),
+   поэтому ушить таблицу уже видимой области ресайзом больше нельзя. */
+table:has(> colgroup[data-fixed]) {
+  table-layout: fixed;
+  width: 0;
+}
+
+/* ПРО ПОЛНУЮ ШИРИНУ НЕзамороженной таблицы: глобального правила НЕТ намеренно.
+   `min-width: 100%` на table внутри content-sized прослойки (реестр аренд) —
+   циклическая зависимость лейаута: родитель меряется по таблице, таблица — по
+   родителю; Chrome раздувал прослойку до клампа ~666667px и ломал ресайз всех
+   таблиц внутри (user 26.07). Full-width решается ТОЧЕЧНО классом `min-w-full`
+   на таблицах, чей родитель гарантированно не content-sized (см.
+   ReserveQueueTable — обёртка overflow-x-auto с шириной от лейаута). */
+
+/* ───────────────────────────────────────────────────────────────
+ * Печать счёта с публичной страницы аренды (`/o/:token`). Кнопка
+ * «Завантажити PDF» открывает системный диалог печати, и без этих правил в
+ * PDF уезжал бы экран приложения: фиксированная консоль, обрезанная область
+ * скролла и рамка «телефона». Оставляем на листе только сам счёт.
+ *
+ * `visibility`, а не `display`, — чтобы не пересобирать раскладку предков:
+ * счёт живёт глубоко внутри flex-колонок с `min-h-0`, и скрытие через
+ * `display:none` схлопывало бы их до нуля вместе с ним.
+ * ─────────────────────────────────────────────────────────────── */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  [data-public-invoice],
+  [data-public-invoice] * {
+    visibility: visible;
+  }
+  [data-public-invoice] {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    margin: 0;
+    border: 0;
+  }
+  [data-public-invoice] [data-print-hide] {
+    display: none;
+  }
+}
+
+/* BP-457 — drawer-aware тосты: sonner-обёртка двигает --offset-right/-bottom
+   при открытии/закрытии docked-дровера (Toaster в components/ui/sonner.tsx).
+   Без transition тост телепортируется мгновенно, пока слот дровера ещё
+   анимируется (AppLayout, 200/220мс) — двигаем его той же кривой. */
+[data-sonner-toaster][data-x-position='right'] {
+  transition: right 200ms cubic-bezier(0.165, 0.84, 0.44, 1);
+}
+[data-sonner-toaster][data-y-position='bottom'] {
+  transition: bottom 220ms cubic-bezier(0.165, 0.84, 0.44, 1);
+}
+[data-sonner-toaster][data-x-position='right'][data-y-position='bottom'] {
+  transition:
+    right 200ms cubic-bezier(0.165, 0.84, 0.44, 1),
+    bottom 220ms cubic-bezier(0.165, 0.84, 0.44, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-sonner-toaster] {
+    transition: none;
+  }
+}
