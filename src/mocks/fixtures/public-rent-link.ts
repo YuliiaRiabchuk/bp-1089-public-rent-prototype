@@ -34,6 +34,8 @@ export interface PublicExtendDay {
   coefficient: { label: string; factor: number } | null
   /** Свободен ли остаток номенклатуры на эти сутки. */
   available: boolean
+  /** Выходной: склад закрыт, возврат переносится на ближайший рабочий день. */
+  closed: boolean
 }
 
 export interface PublicRentPayload {
@@ -158,18 +160,26 @@ const PODIL_BRANCH = {
 /**
  * Сутки продления по одной цене, все свободны. `from` — первые доступные
  * сутки (текущий возврат + 1), длина ряда — 7 суток (потолок контура).
+ *
+ * Воскресенье помечается выходным всегда: склад закрыт, и вернуть в этот день
+ * физически некому. Сутки из расчёта не выпадают — оборудование всё это время
+ * у клиента, — но датой возврата стать не могут.
  */
 function plainDays(
   fromOffset: number,
   rate: number,
   count = 7,
 ): PublicExtendDay[] {
-  return Array.from({ length: count }, (_, i) => ({
-    iso: isoDate(midnight(fromOffset + i)),
-    amount: rate,
-    coefficient: null,
-    available: true,
-  }))
+  return Array.from({ length: count }, (_, i) => {
+    const d = midnight(fromOffset + i)
+    return {
+      iso: isoDate(d),
+      amount: rate,
+      coefficient: null,
+      available: true,
+      closed: d.getDay() === 0,
+    }
+  })
 }
 
 const AERATOR: PublicRentItem = {
@@ -332,26 +342,10 @@ function companyRent(over: Partial<PublicRentPayload> = {}): PublicRentPayload {
   }
 }
 
-/**
- * Продление пересекает государственный праздник — 24.08, День Незалежності.
- * Коэффициент 0,5 приходит из фикстуры (админ настраивает его в справочнике),
- * прототип его не выводит формулой.
- */
-function holidayDays(): PublicExtendDay[] {
-  const year = new Date().getFullYear()
-  const first = new Date(`${year}-08-24T00:00:00`)
-  return Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(first.getTime() + i * DAY_MS)
-    const isHoliday = d.getMonth() === 7 && d.getDate() === 24
-    return {
-      iso: isoDate(d),
-      amount: isHoliday ? 300 : 600,
-      coefficient: isHoliday
-        ? { label: 'День Незалежності, 24.08', factor: 0.5 }
-        : null,
-      available: true,
-    }
-  })
+/** Сколько суток до ближайшей субботы — чтобы ряд наверняка накрыл воскресенье. */
+function daysToSaturday(): number {
+  const today = midnight(0).getDay()
+  return ((6 - today + 7) % 7) || 7
 }
 
 export const PUBLIC_DATASETS: Record<string, PublicDataset> = {}
@@ -403,22 +397,29 @@ register({
   ],
 })
 
+/**
+ * Продление упирается в воскресенье. Склад в этот день закрыт, поэтому датой
+ * возврата воскресенье стать не может: клиент выбирает его — система переносит
+ * возврат на понедельник. Сутки при этом не пропадают, оборудование у клиента
+ * всё воскресенье, и в расчёт они входят.
+ *
+ * Возврат стоит в пятницу, ряд начинается с субботы — воскресенье оказывается
+ * вторым и попадает в кадр без прокрутки, в какой бы день ни открыли демо.
+ */
 register({
-  key: 'holiday',
-  label: 'Продовження через свято',
+  key: 'weekend',
+  label: 'Продовження через вихідний',
   phone: '+380671234567',
   profiles: [PERSON],
   rents: [
     expiringRent({
       rentCode: 'АР-77С1К',
       status: 'ACTIVE',
-      // Сценарий привязан к реальной дате праздника, поэтому даты абсолютные
-      // (локальные, без `Z` — иначе шапка съезжает на смещение часового пояса).
-      issuedAt: `${new Date().getFullYear()}-08-03T10:00:00`,
-      plannedReturnAt: `${new Date().getFullYear()}-08-23T10:00:00`,
+      issuedAt: returnAt(daysToSaturday() - 21),
+      plannedReturnAt: returnAt(daysToSaturday() - 1),
       rentAccount: { days: 20, accrued: 12000, paid: 12000 },
       depositAccount: { amount: 900, paid: 900 },
-      extend: { days: holidayDays() },
+      extend: { days: plainDays(daysToSaturday(), 600) },
     }),
   ],
 })

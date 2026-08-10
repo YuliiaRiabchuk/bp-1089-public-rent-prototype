@@ -40,7 +40,6 @@ import { dateTime, daysBetween } from './format'
 const SESSION_TTL_MS = 30 * 24 * 3_600_000
 const SESSION_KEY = (dataset: string) => `bp.public-rent.session.${dataset}`
 const PAY_MODE_KEY = 'bp.public-rent.pay-mode'
-const SIMULATE_KEY = 'bp.public-rent.simulate'
 
 function readSession(dataset: string): string | null {
   try {
@@ -176,9 +175,6 @@ export function PublicRentPage({ token: dataset }: { token: string }) {
     mutationFn: (opts: { declared?: boolean; method?: PayMethod }) =>
       payTopup(dataset, session!, openId!, opts.method ?? method!, {
         declared: opts.declared,
-        simulate:
-          (localStorage.getItem(SIMULATE_KEY) as 'FULL' | 'PARTIAL' | null) ??
-          'FULL',
       }),
     onSuccess: async (_res, vars) => {
       await qc.invalidateQueries({ queryKey: ['public-rent', dataset] })
@@ -465,9 +461,6 @@ function DevBar({
   payMode: PayMode
   onPayMode: (m: PayMode) => void
 }) {
-  const [simulate, setSimulate] = useState(
-    () => localStorage.getItem(SIMULATE_KEY) ?? 'FULL',
-  )
   // Список сценариев приходит с мока, а не лежит здесь копией: собственная
   // копия однажды уже разошлась с фикстурами — удалённый набор остался в
   // выпадающем списке и вёл на несуществующий адрес.
@@ -527,23 +520,6 @@ function DevBar({
         >
           <option value="BANKS">А — наші банки, без комісії</option>
           <option value="PROVIDER">Б — провайдер, Apple / Google Pay</option>
-        </select>
-      </div>
-      <div className="flex items-center gap-2">
-        <label htmlFor="pr-simulate" className="w-20 text-label text-muted-fg">
-          З 1С
-        </label>
-        <select
-          id="pr-simulate"
-          value={simulate}
-          onChange={(e) => {
-            localStorage.setItem(SIMULATE_KEY, e.target.value)
-            setSimulate(e.target.value)
-          }}
-          className="h-control flex-1 rounded-md border border-border-strong bg-card px-2 text-label text-fg"
-        >
-          <option value="FULL">Прийде вся сума</option>
-          <option value="PARTIAL">Прийде частина — недоплата</option>
         </select>
       </div>
     </div>

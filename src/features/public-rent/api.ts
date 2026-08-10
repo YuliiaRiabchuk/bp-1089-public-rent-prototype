@@ -26,18 +26,19 @@ export type PayMethod =
    */
   | 'INVOICE'
 
-export type PayStatus =
-  | 'NONE'
-  | 'AWAITING'
-  /** Зачислено меньше суммы счёта — клиент видит остаток и платит снова. */
-  | 'PARTIAL'
-  | 'PAID'
+export type PayStatus = 'NONE' | 'AWAITING' | 'PAID'
 
 export interface ExtendDay {
   iso: string
   amount: number
   coefficient: { label: string; factor: number } | null
   available: boolean
+  /**
+   * Выходной: склад закрыт, вернуть в этот день нельзя. Сутки остаются в
+   * расчёте — оборудование всё это время у клиента, — но датой возврата стать
+   * не могут: система переносит возврат на ближайший рабочий день.
+   */
+  closed: boolean
 }
 
 /** Строка списка аренд. Ровно то, по чему клиент узнаёт свою аренду. */
@@ -115,7 +116,7 @@ export interface PublicRent {
   extend: { days: ExtendDay[] } | null
   topup: {
     amount: number
-    /** Сколько уже зачислено по этому счёту. `PARTIAL` живёт на разнице. */
+    /** Сколько уже зачислено по этому счёту. */
     paid: number
     days: number
     invoiceNo: string
@@ -255,7 +256,7 @@ export function payTopup(
   session: string,
   id: string,
   method: PayMethod,
-  opts: { declared?: boolean; simulate?: 'FULL' | 'PARTIAL' } = {},
+  opts: { declared?: boolean } = {},
 ) {
   return fetch(`${base(dataset)}/rents/${encodeURIComponent(id)}/pay`, {
     method: 'POST',

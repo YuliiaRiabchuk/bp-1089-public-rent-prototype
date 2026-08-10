@@ -99,8 +99,6 @@ export function Console({
     />
   ) : status === 'AWAITING' ? (
     <AwaitingConsole rent={rent} />
-  ) : status === 'PARTIAL' ? (
-    <PartialConsole rent={rent} onPayRest={onOpenPicker} />
   ) : status === 'PAID' ? (
     <SettledConsole rent={rent} />
   ) : mode.kind === 'unavailable' ? (
@@ -252,6 +250,9 @@ function PickingConsole({
   const net = span.reduce((s, d) => s + d.amount, 0)
   const total = net + rent.debt
   const blocked = span.some((d) => !d.available)
+  // Выходной внутри выбранного отрезка объясняется до подтверждения: клиент
+  // платит за воскресенье, хотя вернуть в этот день не может.
+  const crossesClosed = span.some((d) => d.closed)
 
   return (
     <div className="flex flex-col gap-3">
@@ -283,8 +284,12 @@ function PickingConsole({
             iso={`${d.iso}T10:00:00`}
             price={d.amount}
             unavailable={!d.available}
+            closed={d.closed}
             selected={d.iso === candidateIso}
-            onPick={() => onPick(d.iso)}
+            // Выходной нажимается, но выбирается следующий рабочий день:
+            // «недоступно» здесь неправда — клиент вправе продлить через
+            // воскресенье, просто вернуть в воскресенье некому.
+            onPick={() => onPick(d.closed ? (days[i + 1]?.iso ?? d.iso) : d.iso)}
           />
         ))}
       </div>
@@ -329,7 +334,9 @@ function PickingConsole({
       <p className="text-center text-label text-muted-fg">
         {blocked
           ? 'На частину обраних діб обладнання зайняте — заявку прийме менеджер'
-          : `${rent.items.length} ${itemsWord(rent.items.length)} за чинними ставками, мінімум +1 доба, максимум +7`}
+          : crossesClosed
+            ? 'Неділя — вихідний: повернення переноситься на понеділок'
+            : `${rent.items.length} ${itemsWord(rent.items.length)} за чинними ставками, мінімум +1 доба, максимум +7`}
       </p>
     </div>
   )
@@ -342,6 +349,7 @@ function DayCell({
   selected,
   disabled = false,
   unavailable = false,
+  closed = false,
   testId,
   onPick,
 }: {
@@ -351,10 +359,11 @@ function DayCell({
   selected: boolean
   disabled?: boolean
   unavailable?: boolean
+  closed?: boolean
   testId?: string
   onPick: () => void
 }) {
-  const off = disabled || unavailable
+  const off = disabled || unavailable || closed
   return (
     <button
       type="button"
@@ -382,6 +391,8 @@ function DayCell({
       </span>
       {unavailable ? (
         <Lock className="size-3" aria-label="зайнято" />
+      ) : closed ? (
+        <span className="text-label text-subtle">вихідний</span>
       ) : (
         <span
           className={`text-label tabular-nums ${selected ? 'text-primary-fg/70' : 'text-muted-fg'}`}
@@ -793,47 +804,6 @@ function AwaitingConsole({ rent }: { rent: PublicRent }) {
       </p>
       <p className="text-label tabular-nums text-subtle">
         Рахунок {rent.topup?.invoiceNo} — {money(rent.topup?.amount ?? 0)}
-      </p>
-    </div>
-  )
-}
-
-/**
- * Недоплата. Самый острый кейс: клиент нажал «сплатив», перевёл меньше, и в
- * старой модели страница висела в ожидании навсегда. Счёт остаётся живым,
- * остаток назван, кнопка возвращается.
- */
-function PartialConsole({
-  rent,
-  onPayRest,
-}: {
-  rent: PublicRent
-  onPayRest: () => void
-}) {
-  const topup = rent.topup!
-  const left = topup.amount - topup.paid
-  return (
-    <div className="flex flex-col gap-3">
-      <div className="rounded-md bg-muted p-3">
-        <Line label="Зараховано" value={money(topup.paid)} muted />
-        <Line label={`Рахунок ${topup.invoiceNo}`} value={money(topup.amount)} muted />
-        <div className="my-1.5 h-px bg-border" />
-        <div className="flex items-baseline justify-between">
-          <span className="text-body font-medium text-fg">Залишилось</span>
-          <span className="text-[22px] font-semibold tabular-nums leading-none text-danger-fg">
-            {money(left)}
-          </span>
-        </div>
-      </div>
-      <PrimaryButton onClick={onPayRest}>
-        {rent.legal
-          ? `Рахунок на залишок — ${money(left)}`
-          : `Доплатити ${money(left)}`}
-      </PrimaryButton>
-      <p className="text-center text-label text-muted-fg">
-        {rent.legal
-          ? 'Виставлений рахунок не коригується — на залишок буде окремий'
-          : 'Оренду продовжено — строк не зміниться, поки ви доплачуєте'}
       </p>
     </div>
   )

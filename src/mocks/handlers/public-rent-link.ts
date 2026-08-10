@@ -35,7 +35,7 @@ const BANK_CONFIRM_MS = 12_000
 const INVOICE_READY_MS = 2_500
 
 type PayMethod = 'BALANCE' | 'BANK' | 'CARD' | 'INVOICE'
-type PayStatus = 'NONE' | 'AWAITING' | 'PARTIAL' | 'PAID'
+type PayStatus = 'NONE' | 'AWAITING' | 'PAID'
 
 interface Topup {
   amount: number
@@ -47,8 +47,6 @@ interface Topup {
   status: PayStatus
   /** Момент, после которого признак оплаты приходит из учётной системы. */
   settleAfter: number | null
-  /** Что придёт из учётной системы — вся сумма или часть. Тумблер прототипа. */
-  simulate: 'FULL' | 'PARTIAL'
   /**
    * Юрлицо: момент, когда счёт собран и отправлен. До него документа нет, и
    * показывать реквизиты не из чего. `null` — этап не нужен (счёт по ФЛ
@@ -127,16 +125,10 @@ function code() {
 function settle(t: Topup): PayStatus {
   if (t.status !== 'AWAITING' || t.settleAfter == null) return t.status
   if (Date.now() < t.settleAfter) return t.status
-  // Клиент нажал «оплату виконано». Из учётной системы приходит СУММА, а не
-  // булево «оплачено»: недоплата обязана оставлять счёт живым, иначе страница
-  // виснет в ожидании навсегда — самый острый кейс, названный техлидом.
-  if (t.simulate === 'PARTIAL') {
-    t.paid = Math.round(t.amount * 0.45)
-    t.status = 'PARTIAL'
-  } else {
-    t.paid = t.amount
-    t.status = 'PAID'
-  }
+  // Сумму счёта клиент не набирает — её считает система по условиям самой
+  // аренды. Поэтому приходит ровно она, и недоплаты как сценария страницы нет.
+  t.paid = t.amount
+  t.status = 'PAID'
   t.settleAfter = null
   return t.status
 }
@@ -395,7 +387,6 @@ export const publicRentLinkHandlers = [
       method: null,
       status: 'NONE',
       settleAfter: null,
-      simulate: 'FULL',
       readyAfter: null,
       sentTo: null,
     }
@@ -420,7 +411,6 @@ export const publicRentLinkHandlers = [
     const body = (await request.json()) as {
       method?: PayMethod
       declared?: boolean
-      simulate?: 'FULL' | 'PARTIAL'
     }
     const method = body.method ?? null
     const outstanding = r.topup.amount - r.topup.paid
@@ -435,7 +425,6 @@ export const publicRentLinkHandlers = [
       if (body.declared) {
         r.topup.status = 'AWAITING'
         r.topup.settleAfter = Date.now() + BANK_CONFIRM_MS
-        r.topup.simulate = body.simulate ?? 'FULL'
       } else {
         r.topup.status = 'NONE'
         r.topup.settleAfter = null
@@ -458,7 +447,6 @@ export const publicRentLinkHandlers = [
       r.topup.status = 'AWAITING'
       r.topup.readyAfter = Date.now() + INVOICE_READY_MS
       r.topup.settleAfter = Date.now() + INVOICE_READY_MS + BANK_CONFIRM_MS
-      r.topup.simulate = body.simulate ?? 'FULL'
       r.topup.sentTo = payload.legal?.email ?? null
     }
     return HttpResponse.json({
