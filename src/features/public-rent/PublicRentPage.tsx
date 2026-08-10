@@ -21,6 +21,7 @@ import { ArrowLeft, Clock } from 'lucide-react'
 import {
   PublicRentError,
   extendRent,
+  fetchDemo,
   fetchPaymentStatus,
   fetchRent,
   fetchSession,
@@ -444,20 +445,6 @@ function PhoneFrame({
   )
 }
 
-const SCENARIOS: Array<{ token: string; label: string }> = [
-  { token: 'demo', label: 'Базовий — три оренди на номері' },
-  { token: 'single', label: 'Одна оренда — список пропускається' },
-  { token: 'deposit', label: 'Застава покриває доплату' },
-  { token: 'balance', label: 'Є баланс контрагента' },
-  { token: 'holiday', label: 'Продовження через свято' },
-  { token: 'busy', label: 'Дати зайняті' },
-  { token: 'dupes', label: 'Два контрагенти на номері' },
-  { token: 'blocked', label: 'ЧС — тільки перегляд' },
-  { token: 'empty', label: 'Активних оренд немає' },
-  { token: 'unknown', label: 'Номера немає в базі' },
-  { token: 'gateway', label: 'Шлюз кодів недоступний' },
-]
-
 /**
  * В основной системе панель жила под `import.meta.env.DEV` — там прод-сборка идёт клиенту.
  * Здесь прод-сборка и есть демо: без переключателей развилку оплаты Б не
@@ -481,6 +468,25 @@ function DevBar({
   const [simulate, setSimulate] = useState(
     () => localStorage.getItem(SIMULATE_KEY) ?? 'FULL',
   )
+  // Список сценариев приходит с мока, а не лежит здесь копией: собственная
+  // копия однажды уже разошлась с фикстурами — удалённый набор остался в
+  // выпадающем списке и вёл на несуществующий адрес.
+  const [scenarios, setScenarios] = useState<
+    Array<{ key: string; label: string }>
+  >([])
+  useEffect(() => {
+    let alive = true
+    void fetchDemo(dataset)
+      .then((d) => alive && setScenarios(d.datasets))
+      .catch(() => {
+        // Набора нет — оставляем список пустым, панель схлопнется до двух
+        // переключателей. Это прототипная обвязка, падать из-за неё нечему.
+      })
+    return () => {
+      alive = false
+    }
+  }, [dataset])
+
   return (
     <div className="hidden w-full max-w-[440px] flex-col gap-2 pt-4 sm:flex">
       <div className="flex items-center gap-2">
@@ -496,8 +502,8 @@ function DevBar({
           }}
           className="h-control flex-1 rounded-md border border-border-strong bg-card px-2 text-label text-fg"
         >
-          {SCENARIOS.map((s) => (
-            <option key={s.token} value={s.token}>
+          {scenarios.map((s) => (
+            <option key={s.key} value={s.key}>
               {s.label}
             </option>
           ))}

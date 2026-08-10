@@ -513,13 +513,22 @@ export const publicRentLinkHandlers = [
   }),
 
   /**
-   * Демо-доступ набора. Эндпоинта в проде нет и быть не может: код знает
-   * только владелец номера. Здесь он существует ради показа — поля входа
-   * приходят заполненными.
+   * Демо-доступ набора и список всех наборов. Эндпоинта в проде нет и быть не
+   * может: код знает только владелец номера. Здесь он существует ради показа —
+   * поля входа приходят заполненными, а переключатель сценариев берёт список
+   * ОТСЮДА, а не из своей копии. Копия однажды уже разошлась с фикстурами:
+   * удалённый набор остался в списке и вёл в никуда.
    */
   http.get(`${P}/demo`, ({ params }) => {
     const data = findDataset(params)
     if (!data) return HttpResponse.json({ code: 'NOT_FOUND' }, { status: 404 })
-    return HttpResponse.json({ phone: data.phone, code: SMS_CODE })
+    return HttpResponse.json({
+      phone: data.phone,
+      code: SMS_CODE,
+      datasets: Object.values(PUBLIC_DATASETS).map((d) => ({
+        key: d.key,
+        label: d.label,
+      })),
+    })
   }),
 ]

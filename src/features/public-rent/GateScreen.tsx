@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Loader2, LockKeyhole, ShieldCheck } from 'lucide-react'
 import {
   PublicRentError,
-  fetchDemoCredentials,
+  fetchDemo,
   requestCode,
   verifyCode,
   type PublicFailure,
@@ -45,7 +45,7 @@ export function GateScreen({
   const [demoCode, setDemoCode] = useState('')
   useEffect(() => {
     let alive = true
-    void fetchDemoCredentials(dataset)
+    void fetchDemo(dataset)
       .then((d) => {
         if (!alive) return
         setPhone((v) => (v === '' ? d.phone : v))

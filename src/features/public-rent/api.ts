@@ -294,12 +294,17 @@ export function sendInvoice(
 }
 
 /**
- * Демо-доступ: номер и код набора. Только для прототипа — поля входа приходят
- * заполненными, чтобы показ не начинался с набора номера на чужом телефоне.
- * В проде эндпоинта нет: код там знает только владелец номера.
+ * Демо-доступ: номер, код и список наборов. Только для прототипа — поля входа
+ * приходят заполненными, а переключатель сценариев берёт список отсюда, а не
+ * держит собственную копию. В проде эндпоинта нет: код знает только владелец
+ * номера.
  */
-export function fetchDemoCredentials(dataset: string) {
+export function fetchDemo(dataset: string) {
   return fetch(`${base(dataset)}/demo`).then(
-    unwrap<{ phone: string; code: string }>,
+    unwrap<{
+      phone: string
+      code: string
+      datasets: Array<{ key: string; label: string }>
+    }>,
   )
 }
