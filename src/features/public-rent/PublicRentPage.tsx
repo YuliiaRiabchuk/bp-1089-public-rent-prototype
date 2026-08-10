@@ -415,7 +415,7 @@ function PhoneFrame({
 }) {
   return (
     <div className="flex h-full w-full flex-col items-center bg-shell">
-      {import.meta.env.DEV && (
+      {showDemoBar() && (
         <DevBar dataset={dataset} payMode={payMode} onPayMode={onPayMode} />
       )}
       <div className="h-full w-full max-w-[440px] overflow-hidden border-border bg-card sm:my-4 sm:h-[calc(100%-2rem)] sm:rounded-lg sm:border sm:shadow-md">
@@ -439,7 +439,17 @@ const SCENARIOS: Array<{ token: string; label: string }> = [
   { token: 'gateway', label: 'Шлюз кодів недоступний' },
 ]
 
-/** Только в dev-сборке: переключатели сценария и развилки оплаты. */
+/**
+ * В CRM панель жила под `import.meta.env.DEV` — там прод-сборка идёт клиенту.
+ * Здесь прод-сборка и есть демо: без переключателей развилку оплаты Б не
+ * показать вообще, а сценарий пришлось бы диктовать адресом. Убирается
+ * параметром `?clean` — для показа, где переключатели мешают.
+ */
+function showDemoBar(): boolean {
+  return !new URLSearchParams(window.location.search).has('clean')
+}
+
+/** Переключатели сценария, развилки оплаты и ответа 1С. */
 function DevBar({
   dataset,
   payMode,
@@ -462,7 +472,8 @@ function DevBar({
           id="pr-scenario"
           value={dataset}
           onChange={(e) => {
-            window.location.href = `/o/${e.target.value}`
+            // `BASE_URL`, а не корень: на GitHub Pages сайт лежит в `/<repo>/`.
+            window.location.href = `${import.meta.env.BASE_URL}o/${e.target.value}${window.location.search}`
           }}
           className="h-control flex-1 rounded-md border border-border-strong bg-card px-2 text-label text-fg"
         >
