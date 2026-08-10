@@ -47,6 +47,11 @@ export function daysWord(n: number) {
   return plural(n, 'доба', 'доби', 'діб')
 }
 
+/** «1 позиція / 2 позиції / 5 позицій» — состав продлеваемой аренды. */
+export function itemsWord(n: number) {
+  return plural(n, 'позиція', 'позиції', 'позицій')
+}
+
 /** Целые сутки между двумя моментами; отрицательное = просрочка. */
 export function daysBetween(fromIso: string, toIso: string): number {
   return Math.round(

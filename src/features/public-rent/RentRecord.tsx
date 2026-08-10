@@ -1,4 +1,13 @@
-import { Copy, MapPin, Phone, Printer, Check } from 'lucide-react'
+import {
+  Check,
+  Copy,
+  Download,
+  Mail,
+  MapPin,
+  Phone,
+  Printer,
+  Send,
+} from 'lucide-react'
 import { useState } from 'react'
 import {
   dateTime,
@@ -25,10 +34,13 @@ import type { PublicRent } from './api'
 export function RentRecord({
   rent,
   candidateIso,
+  onSend,
 }: {
   rent: PublicRent
   /** Дата, которую клиент сейчас перебирает в консоли, — хвост на шкале. */
   candidateIso: string | null
+  /** Повторная отправка готового счёта. Только у юрлица. */
+  onSend: (channel: 'EMAIL' | 'MESSENGER') => Promise<string>
 }) {
   return (
     <div className="bg-card pb-4">
@@ -51,7 +63,12 @@ export function RentRecord({
       <GroupLabel>Застава</GroupLabel>
       <DepositBlock rent={rent} />
 
-      {rent.topup?.method === 'BANK' && <InvoiceCard rent={rent} />}
+      {/* Счёт показывается там, где по нему платят: физлицу — при переводе по
+          реквизитам, юрлицу — всегда, но только когда документ уже собран. */}
+      {(rent.topup?.method === 'BANK' ||
+        (rent.topup?.method === 'INVOICE' && rent.topup.ready)) && (
+        <InvoiceCard rent={rent} onSend={onSend} />
+      )}
 
       <GroupLabel>Повернення на склад</GroupLabel>
       <BranchBlock rent={rent} />
@@ -214,12 +231,23 @@ function ItemsBlock({ rent }: { rent: PublicRent }) {
 
 function RentAccountBlock({ rent }: { rent: PublicRent }) {
   const due = Math.max(0, rent.rentAccount.accrued - rent.rentAccount.paid)
+  // НДС выделяется из начисленного, а не добавляется к нему: ставка юрлица
+  // уже с НДС, и клиент сверяет именно эту долю со своим счётом.
+  const vat = rent.legal
+    ? Math.round(
+        rent.rentAccount.accrued *
+          (rent.legal.vatRate / (1 + rent.legal.vatRate)),
+      )
+    : 0
   return (
     <div className="px-4 py-2.5">
       <Row
         label={`${rent.rentAccount.days} ${daysWord(rent.rentAccount.days)} — нараховано`}
         value={money(rent.rentAccount.accrued)}
       />
+      {rent.legal && (
+        <Row label="у т.ч. ПДВ 20 %" value={money(vat)} tone="muted" />
+      )}
       <Row label="Сплачено" value={money(rent.rentAccount.paid)} tone="muted" />
       <div className="my-1 h-px bg-border" />
       <Row
@@ -270,16 +298,47 @@ function DepositBlock({ rent }: { rent: PublicRent }) {
  * Единственный блок записи, который остаётся карточкой: он и есть документ,
  * его печатают и по нему платят.
  */
-function InvoiceCard({ rent }: { rent: PublicRent }) {
+function InvoiceCard({
+  rent,
+  onSend,
+}: {
+  rent: PublicRent
+  onSend: (channel: 'EMAIL' | 'MESSENGER') => Promise<string>
+}) {
   const topup = rent.topup
   if (!topup) return null
 
-  const purpose = `Оплата за оренду обладнання, рахунок ${topup.invoiceNo}. Без ПДВ.`
+  const legal = rent.legal
+  // НДС сидит ВНУТРИ суммы, а не добавляется сверху: строка так и называется
+  // «у т.ч. ПДВ». Считать её здесь честнее, чем нести в фикстуре: сумма счёта
+  // складывается из выбранных суток, и доля обязана следовать за ней.
+  const vat = legal
+    ? Math.round(topup.amount * (legal.vatRate / (1 + legal.vatRate)))
+    : 0
+  // Счёт — не отдельная сделка, а продолжение действующей аренды на добавленные
+  // сутки. Её номер стоит в назначении платежа: по нему бухгалтерия подшивает
+  // счёт к своему договору, а наш платёж находит свою аренду, а не уходит в
+  // «неопізнані».
+  const purpose = legal
+    ? `Продовження оренди ${rent.rentCode} на ${topup.days} ${daysWord(topup.days)}, рахунок ${topup.invoiceNo}, у т.ч. ПДВ 20%.`
+    : `Продовження оренди ${rent.rentCode}, рахунок ${topup.invoiceNo}. Без ПДВ.`
+  const payee = legal
+    ? {
+        name: legal.payeeName,
+        edrpou: legal.payeeEdrpou,
+        iban: legal.payeeIban,
+      }
+    : {
+        name: rent.branch.fopName,
+        edrpou: rent.branch.fopEdrpou,
+        iban: rent.branch.fopIban,
+      }
   const requisites = [
-    `Отримувач: ${rent.branch.fopName}`,
-    `ЄДРПОУ: ${rent.branch.fopEdrpou}`,
-    `IBAN: ${rent.branch.fopIban}`,
+    `Отримувач: ${payee.name}`,
+    `ЄДРПОУ: ${payee.edrpou}`,
+    `IBAN: ${payee.iban}`,
     `Сума: ${money(topup.amount)}`,
+    ...(legal ? [`у т.ч. ПДВ 20%: ${money(vat)}`] : []),
     `Призначення: ${purpose}`,
   ].join('\n')
 
@@ -288,15 +347,20 @@ function InvoiceCard({ rent }: { rent: PublicRent }) {
       data-public-invoice
       className="mx-4 my-4 rounded-lg border border-border-strong bg-card p-4"
     >
-      <h2 className="mb-3 text-label font-medium uppercase tracking-wide text-muted-fg">
+      <h2 className="text-label font-medium uppercase tracking-wide text-muted-fg">
         Рахунок {topup.invoiceNo}
       </h2>
+      <p className="mb-3 text-label text-muted-fg">
+        Продовження оренди {rent.rentCode} на {topup.days}{' '}
+        {daysWord(topup.days)} — ті самі позиції за чинними ставками
+      </p>
       <Row label="Сума рахунку" value={money(topup.amount)} strong />
+      {legal && <Row label="у т.ч. ПДВ 20 %" value={money(vat)} tone="muted" />}
       <div className="my-2 h-px bg-border" />
       <dl className="flex flex-col gap-2">
-        <Field term="Отримувач" value={rent.branch.fopName} />
-        <Field term="ЄДРПОУ" value={rent.branch.fopEdrpou} mono />
-        <Field term="IBAN" value={rent.branch.fopIban} mono />
+        <Field term="Отримувач" value={payee.name} />
+        <Field term="ЄДРПОУ" value={payee.edrpou} mono />
+        <Field term="IBAN" value={payee.iban} mono />
         <Field term="Призначення платежу" value={purpose} />
       </dl>
       {/* Назначение копируется ОТДЕЛЬНО и стоит первым. Одна кнопка на все
@@ -304,19 +368,107 @@ function InvoiceCard({ rent }: { rent: PublicRent }) {
           вставить, — а без назначения платёж не находит свою аренду и уходит
           в «неопізнані» к бухгалтеру. */}
       <div data-print-hide className="mt-4 flex flex-col gap-2">
-        <CopyButton text={purpose} label="Скопіювати призначення" primary />
-        <CopyButton text={rent.branch.fopIban} label="Скопіювати IBAN" />
-        <CopyButton text={requisites} label="Скопіювати все" />
-        <button
-          type="button"
-          onClick={() => window.print()}
-          className="inline-flex h-11 items-center justify-center gap-2 rounded-md border border-border bg-card text-body font-medium text-fg transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fg focus-visible:ring-offset-1"
-        >
-          <Printer className="size-4" aria-hidden />
-          Роздрукувати рахунок
-        </button>
+        {legal ? (
+          /* Юрлицо счёт не набирает в банке руками — его отдают бухгалтерии
+             файлом. Поэтому первое действие здесь не «скопіювати», а
+             «завантажити», и рядом — пересылка: бухгалтерия сидит не в том
+             мессенджере, где директор открыл страницу. */
+          <>
+            <button
+              type="button"
+              onClick={() => window.print()}
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-md border border-fg bg-fg text-body font-medium text-primary-fg transition-colors hover:bg-fg-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fg focus-visible:ring-offset-1"
+            >
+              <Download className="size-4" aria-hidden />
+              Завантажити PDF
+            </button>
+            <SendButton
+              label="Надіслати на пошту"
+              icon={<Mail className="size-4" aria-hidden />}
+              onSend={() => onSend('EMAIL')}
+            />
+            <SendButton
+              label="Переслати в месенджер"
+              icon={<Send className="size-4" aria-hidden />}
+              onSend={() => onSend('MESSENGER')}
+            />
+            <CopyButton text={requisites} label="Скопіювати реквізити" />
+          </>
+        ) : (
+          <>
+            <CopyButton text={purpose} label="Скопіювати призначення" primary />
+            <CopyButton text={payee.iban} label="Скопіювати IBAN" />
+            <CopyButton text={requisites} label="Скопіювати все" />
+            <button
+              type="button"
+              onClick={() => window.print()}
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-md border border-border bg-card text-body font-medium text-fg transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fg focus-visible:ring-offset-1"
+            >
+              <Printer className="size-4" aria-hidden />
+              Роздрукувати рахунок
+            </button>
+          </>
+        )}
       </div>
+      {legal && topup.sentTo && (
+        <p data-print-hide className="mt-3 text-label text-muted-fg">
+          Рахунок надіслано на {topup.sentTo}
+        </p>
+      )}
     </section>
+  )
+}
+
+/**
+ * Отправка называет адресата после успеха. «Надіслано» без адреса оставляет
+ * клиента гадать, куда именно, — и он жмёт второй раз.
+ */
+function SendButton({
+  label,
+  icon,
+  onSend,
+}: {
+  label: string
+  icon: React.ReactNode
+  onSend: () => Promise<string>
+}) {
+  const [state, setState] = useState<'idle' | 'sending' | 'done' | 'failed'>(
+    'idle',
+  )
+  const [target, setTarget] = useState('')
+
+  const run = async () => {
+    setState('sending')
+    try {
+      setTarget(await onSend())
+      setState('done')
+    } catch {
+      setState('failed')
+    }
+    window.setTimeout(() => setState('idle'), 3200)
+  }
+
+  return (
+    <>
+      <button
+        type="button"
+        disabled={state === 'sending'}
+        onClick={() => void run()}
+        className="inline-flex h-11 items-center justify-center gap-2 rounded-md border border-border bg-card text-body font-medium text-fg transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fg focus-visible:ring-offset-1 disabled:text-subtle"
+      >
+        {state === 'done' ? (
+          <Check className="size-4 text-success-fg" aria-hidden />
+        ) : (
+          icon
+        )}
+        {state === 'done' ? `Надіслано — ${target}` : label}
+      </button>
+      {state === 'failed' && (
+        <p role="alert" className="text-label text-danger-fg">
+          Не вдалося надіслати. Спробуйте ще раз або завантажте PDF.
+        </p>
+      )}
+    </>
   )
 }
 

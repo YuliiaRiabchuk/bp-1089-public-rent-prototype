@@ -59,6 +59,17 @@ export interface PublicRentPayload {
     fopIban: string
     fopEdrpou: string
   }
+  /**
+   * Не `null` → аренда юрлица: получатель ТОВ вместо ФОПа, аренда с НДС,
+   * залог отдельным счётом без НДС. Механика — в `api.ts`.
+   */
+  legal: {
+    payeeName: string
+    payeeEdrpou: string
+    payeeIban: string
+    vatRate: number
+    email: string
+  } | null
   issuedAt: string
   plannedReturnAt: string
   items: PublicRentItem[]
@@ -175,11 +186,36 @@ const VIBRO: PublicRentItem = {
   dayRate: 850,
 }
 
+/**
+ * Ставка юрлица — уже с НДС: в счёте он не добавляется сверху, а выделяется
+ * строкой «у т.ч. ПДВ». 1 800 = база 1 500 + 300 НДС, поэтому все суммы
+ * сценария делятся на 6 без остатка и НДС на экране читается, а не считается.
+ */
+const GENERATOR: PublicRentItem = {
+  id: 'itm-gen',
+  name: 'Генератор дизельний 15 кВт',
+  qty: 1,
+  dayRate: 1800,
+}
+
 const DRILL: PublicRentItem = {
   id: 'itm-drl',
   name: 'Перфоратор Bosch GBH 5-40',
   qty: 2,
   dayRate: 180,
+}
+
+/**
+ * Получатель по счетам юрлиц — одно ТОВ на всю сеть, а не ФОП отделения.
+ * ФОП сидит на упрощёнке и НДС не выделяет, поэтому счёт от него бухгалтерия
+ * клиента к вычету не поставит. Реквизиты вымышленные, как и у ФОПов.
+ */
+const ORG = {
+  payeeName: 'ТОВ «Оренда Інструменту»',
+  payeeEdrpou: '00000001',
+  payeeIban: 'UA000000000000000000000000010',
+  vatRate: 0.2,
+  email: 'buh@budgrup.example',
 }
 
 const PERSON = {
@@ -205,6 +241,7 @@ function expiringRent(over: Partial<PublicRentPayload> = {}): PublicRentPayload 
     profileId: PERSON.id,
     counterparty: { name: PERSON.name, phoneMasked: MASKED, balance: 0 },
     branch: KYIV_BRANCH,
+    legal: null,
     issuedAt: returnAt(-6),
     plannedReturnAt: returnAt(2),
     items: [AERATOR],
@@ -216,11 +253,7 @@ function expiringRent(over: Partial<PublicRentPayload> = {}): PublicRentPayload 
   }
 }
 
-/**
- * Просрочка на 2 суток с долгом 1 200 ₴. Залог здесь маленький и доплату НЕ
- * покрывает — иначе бесплатный способ съедал бы все сценарии оплаты, и
- * развилку A/Б не на чем было бы показать.
- */
+/** Просрочка на 2 суток с долгом 1 200 ₴ — он входит в сумму доплаты. */
 function overdueRent(): PublicRentPayload {
   return expiringRent({
     id: 'r-overdue',
@@ -256,6 +289,47 @@ function closedRent(): PublicRentPayload {
     },
     extend: null,
   })
+}
+
+const COMPANY_PROFILE = {
+  id: 'cp-budgrup',
+  name: 'ТОВ «БудГруп»',
+  kind: 'COMPANY' as const,
+  concealed: false,
+}
+
+/**
+ * Аренда юрлица. Со страницы деньги не уходят вообще: клиент продлевает срок и
+ * получает счёт, а платит его бухгалтерия со счёта компании. Поэтому вместо
+ * способов оплаты здесь одна кнопка «Сформувати рахунок», а оплату
+ * подтверждает менеджер, когда платёж придёт.
+ */
+function companyRent(over: Partial<PublicRentPayload> = {}): PublicRentPayload {
+  return {
+    id: 'r-ul-active',
+    rentCode: 'АР-2Д7К4',
+    status: 'EXPIRING_SOON',
+    readOnly: null,
+    profileId: COMPANY_PROFILE.id,
+    counterparty: {
+      name: COMPANY_PROFILE.name,
+      phoneMasked: MASKED,
+      balance: 0,
+    },
+    branch: KYIV_BRANCH,
+    legal: ORG,
+    issuedAt: returnAt(-10),
+    plannedReturnAt: returnAt(2),
+    items: [GENERATOR],
+    // 12 суток × 1 800 = 21 600, в том числе НДС 3 600. Оплачено полностью:
+    // юрлицо платит по счёту вперёд, долг у него — исключение, а не норма.
+    rentAccount: { days: 12, accrued: 21600, paid: 21600 },
+    // Залог идёт БЕЗ НДС и отдельной платёжкой на другой расчётный счёт.
+    depositAccount: { amount: 12000, paid: 12000 },
+    debt: 0,
+    extend: { days: plainDays(3, 1800) },
+    ...over,
+  }
 }
 
 /**
@@ -303,15 +377,6 @@ register({
   phone: '+380671234567',
   profiles: [PERSON],
   rents: [expiringRent()],
-})
-
-// Залог покрывает доплату — самый дешёвый способ стоит первым и по умолчанию.
-register({
-  key: 'deposit',
-  label: 'Застава покриває доплату',
-  phone: '+380671234567',
-  profiles: [PERSON],
-  rents: [expiringRent({ depositAccount: { amount: 5000, paid: 5000 } })],
 })
 
 /**
@@ -371,6 +436,37 @@ register({
       extend: {
         days: plainDays(3, 600).map((d, i) => ({ ...d, available: i < 1 })),
       },
+    }),
+  ],
+})
+
+/**
+ * Юрлицо целиком: вход тот же, дальше всё другое. Продление доступно, но
+ * платить со страницы нельзя — вместо способов оплаты формируется счёт.
+ *
+ * ⚠️ ДОПУЩЕНИЕ. Номер здесь — корпоративный контакт компании, и профиль на нём
+ * только один. Это не противоречит правилу `concealed` (см. `dupes`): там ЮЛ
+ * прячется, потому что номер ЛИЧНЫЙ, директорский, и рядом лежат его
+ * собственные аренды. Кому именно из компании отдавать доступ к суммам —
+ * вопрос к бизнесу, в макете он решён в пользу контактного лица.
+ */
+register({
+  key: 'company',
+  label: 'ЮО — рахунок замість оплати',
+  phone: '+380671234567',
+  profiles: [COMPANY_PROFILE],
+  rents: [
+    companyRent(),
+    companyRent({
+      id: 'r-ul-active-2',
+      rentCode: 'АР-2Д7К9',
+      status: 'ACTIVE',
+      issuedAt: returnAt(-4),
+      plannedReturnAt: returnAt(9),
+      items: [DRILL],
+      rentAccount: { days: 13, accrued: 4680, paid: 4680 },
+      depositAccount: { amount: 2000, paid: 2000 },
+      extend: { days: plainDays(10, 360) },
     }),
   ],
 })

@@ -13,14 +13,18 @@
 export type PayMode = 'BANKS' | 'PROVIDER'
 
 export type PayMethod =
-  /** Доплата удерживается из залога при возврате. Денег сейчас не берём. */
-  | 'DEPOSIT_OFFSET'
   /** Списание с операционного баланса контрагента. */
   | 'BALANCE'
   /** Перевод по реквизитам ФОПа (развилка A). */
   | 'BANK'
   /** Checkout провайдера: Apple Pay / Google Pay / карта (развилка Б). */
   | 'CARD'
+  /**
+   * Юрлицо. Страница денег не берёт вообще: она формирует счёт, счёт уходит
+   * клиенту, оплату по нему подтверждает менеджер. Развилка A/Б к ЮЛ не
+   * относится — безнал по счёту у юрлица единственный способ.
+   */
+  | 'INVOICE'
 
 export type PayStatus =
   | 'NONE'
@@ -28,7 +32,6 @@ export type PayStatus =
   /** Зачислено меньше суммы счёта — клиент видит остаток и платит снова. */
   | 'PARTIAL'
   | 'PAID'
-  | 'DEPOSIT_OFFSET'
 
 export interface ExtendDay {
   iso: string
@@ -88,6 +91,21 @@ export interface PublicRent {
     fopIban: string
     fopEdrpou: string
   }
+  /**
+   * Не `null` → аренда юрлица. Отличий три, и все три обязательны, иначе счёт
+   * не примет бухгалтерия клиента: получатель — ТОВ, а не ФОП склада (ФОП на
+   * упрощёнке, НДС не выделяет); аренда идёт с НДС +20 % отдельной строкой
+   * «у т.ч. ПДВ»; залог — свой счёт без НДС и на другой расчётный счёт.
+   */
+  legal: {
+    payeeName: string
+    payeeEdrpou: string
+    payeeIban: string
+    /** Доля НДС внутри суммы счёта. 0.2 → строка «у т.ч. ПДВ 20 %». */
+    vatRate: number
+    /** Куда система отправляет сформированный счёт. */
+    email: string
+  } | null
   issuedAt: string
   plannedReturnAt: string
   items: Array<{ id: string; name: string; qty: number; dayRate: number }>
@@ -103,6 +121,14 @@ export interface PublicRent {
     invoiceNo: string
     method: PayMethod | null
     status: PayStatus
+    /**
+     * Счёт формируется не мгновенно: его собирает система и отправляет
+     * клиенту. До этого момента показывать реквизиты и кнопку «завантажити»
+     * нечестно — документа ещё нет.
+     */
+    ready: boolean
+    /** Куда счёт уже ушёл. `null` — ещё никуда. */
+    sentTo: string | null
   } | null
   managerTask: { code: string; wantedIso: string } | null
 }
@@ -246,5 +272,34 @@ export function fetchPaymentStatus(
 ) {
   return fetch(`${base(dataset)}/rents/${encodeURIComponent(id)}/payment`, {
     headers: json(session),
-  }).then(unwrap<{ status: PayStatus; paid: number }>)
+  }).then(unwrap<{ status: PayStatus; paid: number; ready: boolean }>)
+}
+
+/**
+ * Отправка готового счёта. Счёт уже пришёл клиенту при формировании — это
+ * повторная отправка на его выбор: бухгалтерия клиента сидит не в том же
+ * мессенджере, где директор открыл страницу.
+ */
+export function sendInvoice(
+  dataset: string,
+  session: string,
+  id: string,
+  channel: 'EMAIL' | 'MESSENGER',
+) {
+  return fetch(`${base(dataset)}/rents/${encodeURIComponent(id)}/invoice/send`, {
+    method: 'POST',
+    headers: json(session),
+    body: JSON.stringify({ channel }),
+  }).then(unwrap<{ sentTo: string }>)
+}
+
+/**
+ * Демо-доступ: номер и код набора. Только для прототипа — поля входа приходят
+ * заполненными, чтобы показ не начинался с набора номера на чужом телефоне.
+ * В проде эндпоинта нет: код там знает только владелец номера.
+ */
+export function fetchDemoCredentials(dataset: string) {
+  return fetch(`${base(dataset)}/demo`).then(
+    unwrap<{ phone: string; code: string }>,
+  )
 }

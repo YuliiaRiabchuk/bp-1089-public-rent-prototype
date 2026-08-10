@@ -5,14 +5,14 @@ import {
   CalendarClock,
   Check,
   CreditCard,
+  FileText,
   Loader2,
   Lock,
   Phone,
   RefreshCw,
-  ShieldCheck,
   Wallet,
 } from 'lucide-react'
-import { daysWord, money, shortDate, weekday } from './format'
+import { daysWord, itemsWord, money, shortDate, weekday } from './format'
 import type { ExtendDay, PayMethod, PayMode, PublicRent } from './api'
 
 /**
@@ -22,10 +22,10 @@ import type { ExtendDay, PayMethod, PayMode, PublicRent } from './api'
  * палец не должен путешествовать по экрану, а сумма обязана стоять рядом с
  * кнопкой, которая её подтверждает.
  *
- * Способы оплаты идут от самого дешёвого для бизнеса к самому дорогому, и
- * первые два вообще не берут денег сейчас: залог и баланс уже у нас. Развилка
- * A/Б меняет ровно третью строку и то, что происходит после неё, — остальная
- * консоль общая.
+ * Способы оплаты идут от самого дешёвого для бизнеса к самому дорогому: баланс
+ * уже у нас, перевод стоит нуля и неудобен клиенту, карта удобна и стоит
+ * комиссии. Развилка A/Б меняет ровно последнюю строку, остальная консоль
+ * общая. У юрлица списка нет вовсе — там одна кнопка «Сформувати рахунок».
  */
 export type ConsoleMode =
   | { kind: 'idle' }
@@ -101,7 +101,7 @@ export function Console({
     <AwaitingConsole rent={rent} />
   ) : status === 'PARTIAL' ? (
     <PartialConsole rent={rent} onPayRest={onOpenPicker} />
-  ) : status === 'PAID' || status === 'DEPOSIT_OFFSET' ? (
+  ) : status === 'PAID' ? (
     <SettledConsole rent={rent} />
   ) : mode.kind === 'unavailable' ? (
     <UnavailableConsole onCancel={onCancel} />
@@ -200,8 +200,19 @@ function IdleConsole({ rent, onOpen }: { rent: PublicRent; onOpen: () => void })
         <CalendarClock className="size-4" aria-hidden />
         Продовжити оренду
       </PrimaryButton>
+      {/* Граница возможностей страницы названа до нажатия, а не после. Здесь
+          продлевается РОВНО эта аренда: те же позиции, те же ставки, тот же
+          склад — новый счёт просто повторяет прежний на добавленные сутки.
+          Всё остальное — другой состав, другое количество, другие условия —
+          это уже переговоры, и им место в разговоре с менеджером. */}
       <p className="text-center text-label text-muted-fg">
-        Тут можна продовжити на строк до 7 діб
+        Ті самі позиції на тих самих умовах, до 7 діб. Потрібні зміни —{' '}
+        <a
+          href={`tel:${rent.branch.phone.replace(/\D/g, '')}`}
+          className="underline underline-offset-2 hover:text-fg"
+        >
+          зателефонуйте менеджеру
+        </a>
       </p>
     </div>
   )
@@ -318,7 +329,7 @@ function PickingConsole({
       <p className="text-center text-label text-muted-fg">
         {blocked
           ? 'На частину обраних діб обладнання зайняте — заявку прийме менеджер'
-          : 'Мінімум +1 доба, максимум +7 діб'}
+          : `${rent.items.length} ${itemsWord(rent.items.length)} за чинними ставками, мінімум +1 доба, максимум +7`}
       </p>
     </div>
   )
@@ -421,8 +432,8 @@ function UnavailableConsole({ onCancel }: { onCancel: () => void }) {
 }
 
 /**
- * Способы оплаты. Порядок — по цене для бизнеса: залог и баланс уже у нас и
- * не стоят ничего, перевод стоит нуля и неудобен клиенту, карта удобна и
+ * Способы оплаты физлица. Порядок — по цене для бизнеса: баланс уже у нас и
+ * не стоит ничего, перевод стоит нуля и неудобен клиенту, карта удобна и
  * стоит комиссии. Развилка меняет ровно последнюю строку.
  */
 function PayingConsole({
@@ -445,8 +456,19 @@ function PayingConsole({
   const topup = rent.topup!
   const outstanding = topup.amount - topup.paid
   const balance = rent.counterparty.balance
-  const depositHeld = rent.depositAccount.paid
-  const depositCovers = depositHeld >= outstanding
+
+  // У юрлица выбора нет: деньги идут со счёта компании по счёту-фактуре, и
+  // ни баланс, ни карта, ни перевод физлица тут не применимы. Поэтому вместо
+  // списка способов — одно действие.
+  if (rent.legal)
+    return (
+      <LegalPayConsole
+        rent={rent}
+        pending={pending}
+        onConfirm={onConfirm}
+        onLater={onLater}
+      />
+    )
 
   return (
     <div className="flex flex-col gap-3">
@@ -466,24 +488,6 @@ function PayingConsole({
       </div>
 
       <div className="flex flex-col gap-1.5">
-        {/* Ничего не платить сейчас — самый дешёвый исход и для клиента, и для
-            нас: механика зачёта из залога уже описана и работает сегодня.
-            Поэтому строка стоит первой. */}
-        {depositHeld > 0 && (
-          <MethodRow
-            value="DEPOSIT_OFFSET"
-            icon={<ShieldCheck className="size-4" aria-hidden />}
-            label="Утримати із застави"
-            hint={
-              depositCovers
-                ? `Із ${money(depositHeld)} застави. Платити зараз не потрібно`
-                : `У заставі ${money(depositHeld)} — не вистачає ${money(outstanding - depositHeld)}`
-            }
-            selected={method === 'DEPOSIT_OFFSET'}
-            disabled={!depositCovers}
-            onSelect={() => onPickMethod('DEPOSIT_OFFSET')}
-          />
-        )}
         {/* Баланс закрывает доплату ЦЕЛИКОМ или не участвует: смешанной оплаты
             (часть балансом, остаток переводом) в спеке нет, и списать 1 200 с
             остатка в 500 — выдуманные деньги. Не хватает → способ виден с
@@ -534,11 +538,9 @@ function PayingConsole({
           ? 'Показати реквізити'
           : method === 'CARD'
             ? `Сплатити ${money(outstanding)}`
-            : method === 'DEPOSIT_OFFSET'
-              ? 'Так, утримати із застави'
-              : method === 'BALANCE'
-                ? `Списати ${money(outstanding)}`
-                : 'Оберіть спосіб оплати'}
+            : method === 'BALANCE'
+              ? `Списати ${money(outstanding)}`
+              : 'Оберіть спосіб оплати'}
       </PrimaryButton>
       <div className="flex flex-col items-center gap-2">
         {/* Выход из оплаты. Без него единственная дорога назад — стрелка в
@@ -575,10 +577,103 @@ function PendingTopupConsole({
   return (
     <div className="flex flex-col gap-3">
       <p className="text-body text-muted-fg">
-        Оренду продовжено до {shortDate(rent.plannedReturnAt)}. Залишилось
-        сплатити доплату.
+        Оренду продовжено до {shortDate(rent.plannedReturnAt)}.{' '}
+        {rent.legal
+          ? 'Залишилось виставити рахунок на доплату.'
+          : 'Залишилось сплатити доплату.'}
       </p>
-      <PrimaryButton onClick={onPay}>Сплатити {money(left)}</PrimaryButton>
+      <PrimaryButton onClick={onPay}>
+        {rent.legal ? (
+          <>
+            <FileText className="size-4" aria-hidden />
+            Сформувати рахунок на {money(left)}
+          </>
+        ) : (
+          `Сплатити ${money(left)}`
+        )}
+      </PrimaryButton>
+    </div>
+  )
+}
+
+/**
+ * Оплата юрлица. Со страницы деньги не уходят: она формирует счёт, счёт едет
+ * бухгалтерии клиента, а платёж придёт со счёта компании. Кнопка одна — выбор
+ * способа здесь был бы выдумкой.
+ *
+ * Счёт не новый документ на новых условиях, а повторение прежнего на добавленные
+ * сутки: тот же состав, те же ставки, тот же получатель. Поэтому в блоке стоит
+ * номер продлеваемой аренды — бухгалтерия клиента подшивает счёт к своему
+ * договору, и без ссылки на аренду он у неё «ничей».
+ *
+ * Сумма названа с НДС и с выделенной долей: бухгалтерия клиента сверяет именно
+ * эту строку, и «у т.ч. ПДВ» в счёте она увидит всё равно. Пусть увидит сразу.
+ */
+function LegalPayConsole({
+  rent,
+  pending,
+  onConfirm,
+  onLater,
+}: {
+  rent: PublicRent
+  pending: boolean
+  onConfirm: () => void
+  onLater: () => void
+}) {
+  const topup = rent.topup!
+  const outstanding = topup.amount - topup.paid
+  const vat = Math.round(outstanding * (rent.legal!.vatRate / (1 + rent.legal!.vatRate)))
+  return (
+    <div className="flex flex-col gap-3">
+      <p className="text-label font-medium uppercase tracking-wide text-muted-fg">
+        Продовження оренди {rent.rentCode}
+      </p>
+      <div className="rounded-md bg-muted p-3">
+        <Line
+          label={`${rent.items.length} ${itemsWord(rent.items.length)} за чинними ставками`}
+          value={money(outstanding)}
+        />
+        <Line label="у т.ч. ПДВ 20 %" value={money(vat)} muted />
+        <div className="my-1.5 h-px bg-border" />
+        <Line label="Отримувач" value={rent.legal!.payeeName} muted />
+      </div>
+      <PrimaryButton onClick={onConfirm} pending={pending}>
+        <FileText className="size-4" aria-hidden />
+        Сформувати рахунок
+      </PrimaryButton>
+      <button
+        type="button"
+        onClick={onLater}
+        className="text-center text-body text-muted-fg underline underline-offset-2 hover:text-fg"
+      >
+        Не зараз
+      </button>
+      <p className="text-center text-label text-muted-fg">
+        Рахунок надішлемо на пошту — оплату проведе ваша бухгалтерія
+      </p>
+    </div>
+  )
+}
+
+/**
+ * Счёт собирается. Этап живёт секунды, но без него кнопка «завантажити»
+ * появлялась бы раньше самого документа — и первое же нажатие отдавало бы
+ * пустоту.
+ */
+function IssuingConsole() {
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex items-center gap-2">
+        <Loader2
+          className="size-4 animate-spin text-muted-fg motion-reduce:hidden"
+          aria-hidden
+        />
+        <p className="text-title font-medium text-fg">Формуємо рахунок</p>
+      </div>
+      <p className="text-body text-muted-fg">
+        Оренду вже продовжено. За кілька секунд рахунок з'явиться тут — його
+        можна буде завантажити або переслати.
+      </p>
     </div>
   )
 }
@@ -679,6 +774,7 @@ function InvoiceConsole({
 }
 
 function AwaitingConsole({ rent }: { rent: PublicRent }) {
+  if (rent.legal && !rent.topup?.ready) return <IssuingConsole />
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-center gap-2">
@@ -686,12 +782,14 @@ function AwaitingConsole({ rent }: { rent: PublicRent }) {
           className="size-4 animate-spin text-muted-fg motion-reduce:hidden"
           aria-hidden
         />
-        <p className="text-title font-medium text-fg">Чекаємо на гроші</p>
+        <p className="text-title font-medium text-fg">
+          {rent.legal ? 'Рахунок у вас — чекаємо оплату' : 'Чекаємо на гроші'}
+        </p>
       </div>
       <p className="text-body text-muted-fg">
-        Оренду вже продовжено — обладнання ваше. Коли платіж дійде, цей рядок
-        зміниться сам. Зазвичай це кілька годин, у вихідні — до наступного
-        робочого дня.
+        {rent.legal
+          ? `Рахунок надіслали на ${rent.topup?.sentTo}. Оренду вже продовжено — обладнання ваше. Оплату проведе ваша бухгалтерія, наш менеджер підтвердить її, коли гроші зайдуть.`
+          : 'Оренду вже продовжено — обладнання ваше. Коли платіж дійде, цей рядок зміниться сам. Зазвичай це кілька годин, у вихідні — до наступного робочого дня.'}
       </p>
       <p className="text-label tabular-nums text-subtle">
         Рахунок {rent.topup?.invoiceNo} — {money(rent.topup?.amount ?? 0)}
@@ -727,32 +825,31 @@ function PartialConsole({
           </span>
         </div>
       </div>
-      <PrimaryButton onClick={onPayRest}>Доплатити {money(left)}</PrimaryButton>
+      <PrimaryButton onClick={onPayRest}>
+        {rent.legal
+          ? `Рахунок на залишок — ${money(left)}`
+          : `Доплатити ${money(left)}`}
+      </PrimaryButton>
       <p className="text-center text-label text-muted-fg">
-        Оренду продовжено — строк не зміниться, поки ви доплачуєте
+        {rent.legal
+          ? 'Виставлений рахунок не коригується — на залишок буде окремий'
+          : 'Оренду продовжено — строк не зміниться, поки ви доплачуєте'}
       </p>
     </div>
   )
 }
 
 function SettledConsole({ rent }: { rent: PublicRent }) {
-  const offset = rent.topup?.status === 'DEPOSIT_OFFSET'
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-center gap-2">
-        <span
-          className={`grid size-5 place-items-center rounded-full ${offset ? 'bg-notice' : 'bg-success'} text-white`}
-        >
+        <span className="grid size-5 place-items-center rounded-full bg-success text-white">
           <Check className="size-3" aria-hidden />
         </span>
-        <p className="text-title font-medium text-fg">
-          {offset ? 'Продовжено — платити зараз не треба' : 'Гроші отримали'}
-        </p>
+        <p className="text-title font-medium text-fg">Гроші отримали</p>
       </div>
       <p className="text-body text-muted-fg">
-        {offset
-          ? `Доплату ${money(rent.topup?.amount ?? 0)} утримаємо із застави, коли приймемо обладнання. Решту застави повернемо.`
-          : `Оренда діє до ${shortDate(rent.plannedReturnAt)}. Гарної роботи.`}
+        Оренда діє до {shortDate(rent.plannedReturnAt)}. Гарної роботи.
       </p>
     </div>
   )

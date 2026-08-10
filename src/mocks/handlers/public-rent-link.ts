@@ -31,9 +31,11 @@ const RESEND_COOLDOWN_MS = 60_000
 const MAX_SENDS_PER_DAY = 5
 /** Через сколько «бухгалтер проводит платёж» после выпуска счёта. */
 const BANK_CONFIRM_MS = 12_000
+/** Сколько система собирает и отправляет счёт юрлицу. */
+const INVOICE_READY_MS = 2_500
 
-type PayMethod = 'DEPOSIT_OFFSET' | 'BALANCE' | 'BANK' | 'CARD'
-type PayStatus = 'NONE' | 'AWAITING' | 'PARTIAL' | 'PAID' | 'DEPOSIT_OFFSET'
+type PayMethod = 'BALANCE' | 'BANK' | 'CARD' | 'INVOICE'
+type PayStatus = 'NONE' | 'AWAITING' | 'PARTIAL' | 'PAID'
 
 interface Topup {
   amount: number
@@ -47,6 +49,14 @@ interface Topup {
   settleAfter: number | null
   /** Что придёт из учётной системы — вся сумма или часть. Тумблер прототипа. */
   simulate: 'FULL' | 'PARTIAL'
+  /**
+   * Юрлицо: момент, когда счёт собран и отправлен. До него документа нет, и
+   * показывать реквизиты не из чего. `null` — этап не нужен (счёт по ФЛ
+   * существует сразу).
+   */
+  readyAfter: number | null
+  /** Куда счёт уже ушёл. */
+  sentTo: string | null
 }
 
 interface RentState {
@@ -135,6 +145,10 @@ function payStatus(r: RentState): PayStatus {
   return r.topup ? settle(r.topup) : 'NONE'
 }
 
+function invoiceReady(t: Topup) {
+  return t.readyAfter == null || Date.now() >= t.readyAfter
+}
+
 function topupOut(r: RentState) {
   if (!r.topup) return null
   const status = settle(r.topup)
@@ -145,6 +159,8 @@ function topupOut(r: RentState) {
     invoiceNo: r.topup.invoiceNo,
     method: r.topup.method,
     status,
+    ready: invoiceReady(r.topup),
+    sentTo: r.topup.sentTo,
   }
 }
 
@@ -380,6 +396,8 @@ export const publicRentLinkHandlers = [
       status: 'NONE',
       settleAfter: null,
       simulate: 'FULL',
+      readyAfter: null,
+      sentTo: null,
     }
     r.managerTask = { code: code(), wantedIso: chosen }
     return HttpResponse.json({ ok: true, newReturnAt: r.newReturnIso })
@@ -433,8 +451,15 @@ export const publicRentLinkHandlers = [
       r.topup.status = 'PAID'
       r.topup.settleAfter = null
     } else {
-      r.topup.status = 'DEPOSIT_OFFSET'
-      r.topup.settleAfter = null
+      // Юрлицо. Счёт собирается и уходит клиенту, дальше страница только ждёт:
+      // деньги идут со счёта компании, и приход подтверждает менеджер, а не
+      // кнопка на этом экране. Недоплата возможна и здесь — бухгалтерия
+      // клиента платит по своей ведомости, а не по нашей сумме.
+      r.topup.status = 'AWAITING'
+      r.topup.readyAfter = Date.now() + INVOICE_READY_MS
+      r.topup.settleAfter = Date.now() + INVOICE_READY_MS + BANK_CONFIRM_MS
+      r.topup.simulate = body.simulate ?? 'FULL'
+      r.topup.sentTo = payload.legal?.email ?? null
     }
     return HttpResponse.json({
       status: payStatus(r),
@@ -456,6 +481,45 @@ export const publicRentLinkHandlers = [
     return HttpResponse.json({
       status: payStatus(r),
       paid: r.topup?.paid ?? 0,
+      ready: r.topup ? invoiceReady(r.topup) : false,
     })
+  }),
+
+  /**
+   * Повторная отправка счёта. Канал выбирает клиент: счёт уходит на почту
+   * бухгалтерии или в мессенджер, из которого он открыл страницу.
+   */
+  http.post(`${P}/rents/:id/invoice/send`, async ({ params, request }) => {
+    await delay(500)
+    const data = findDataset(params)
+    if (!data) return HttpResponse.json({ code: 'NOT_FOUND' }, { status: 404 })
+    const s = stateOf(data.key)
+    if (!authed(s, request))
+      return HttpResponse.json({ code: 'UNAUTHORIZED' }, { status: 401 })
+    const payload = data.rents.find((r) => r.id === params.id)
+    if (!payload)
+      return HttpResponse.json({ code: 'NOT_FOUND' }, { status: 404 })
+    const r = rentStateOf(s, payload.id)
+    if (!r.topup || !invoiceReady(r.topup))
+      return HttpResponse.json({ code: 'NOT_FOUND' }, { status: 409 })
+
+    const body = (await request.json()) as { channel?: 'EMAIL' | 'MESSENGER' }
+    const sentTo =
+      body.channel === 'MESSENGER'
+        ? `Viber ${payload.counterparty.phoneMasked}`
+        : (payload.legal?.email ?? 'пошту контрагента')
+    r.topup.sentTo = sentTo
+    return HttpResponse.json({ sentTo })
+  }),
+
+  /**
+   * Демо-доступ набора. Эндпоинта в проде нет и быть не может: код знает
+   * только владелец номера. Здесь он существует ради показа — поля входа
+   * приходят заполненными.
+   */
+  http.get(`${P}/demo`, ({ params }) => {
+    const data = findDataset(params)
+    if (!data) return HttpResponse.json({ code: 'NOT_FOUND' }, { status: 404 })
+    return HttpResponse.json({ phone: data.phone, code: SMS_CODE })
   }),
 ]

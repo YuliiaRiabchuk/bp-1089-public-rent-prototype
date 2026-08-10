@@ -15,7 +15,7 @@
  * FINISH: unreviewed and undocumented is unfinished; this build ends with the
  *   finish review and the verdict.
  */
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, Clock } from 'lucide-react'
 import {
@@ -25,6 +25,7 @@ import {
   fetchRent,
   fetchSession,
   payTopup,
+  sendInvoice,
   type PayMethod,
   type PayMode,
 } from './api'
@@ -97,22 +98,29 @@ export function PublicRentPage({ token: dataset }: { token: string }) {
     if (unauthorized(sessionQ.error) || unauthorized(rentQ.error)) signOut()
   }, [sessionQ.error, rentQ.error, signOut])
 
-  // Признак «счёт оплачен» приходит из учётной системы — страница опрашивает
-  // его, пока висит ожидание, и ни менеджер, ни клиент для этого ничего не
-  // делают.
+  // Пока висит ожидание, страница опрашивает две вещи, и обе приходят не от
+  // клиента: собрался ли счёт (юрлицо) и зачислился ли платёж (учётная
+  // система). Ни менеджер, ни клиент для этого ничего не нажимают.
+  //
+  // Сравнение с прошлым тиком, а не «status !== AWAITING»: у юрлица счёт
+  // становится готов, оставаясь в том же AWAITING, и без этого экран ждал бы
+  // документ, который уже есть.
+  const polled = useRef('')
   useEffect(() => {
     if (status !== 'AWAITING' || !session || !openId) return
     const id = window.setInterval(() => {
       void fetchPaymentStatus(dataset, session, openId)
         .then((r) => {
-          if (r.status !== 'AWAITING')
-            void qc.invalidateQueries({ queryKey: ['public-rent', dataset] })
+          const seen = `${r.status}|${r.ready}|${r.paid}`
+          if (seen === polled.current) return
+          polled.current = seen
+          void qc.invalidateQueries({ queryKey: ['public-rent', dataset] })
         })
         .catch(() => {
           // Обрыв связи при опросе — не событие для клиента: следующий тик
           // сходит ещё раз, статус на экране не врёт.
         })
-    }, 3000)
+    }, 1500)
     return () => window.clearInterval(id)
   }, [status, session, openId, dataset, qc])
 
@@ -164,8 +172,8 @@ export function PublicRentPage({ token: dataset }: { token: string }) {
   })
 
   const payM = useMutation({
-    mutationFn: (opts: { declared?: boolean }) =>
-      payTopup(dataset, session!, openId!, method!, {
+    mutationFn: (opts: { declared?: boolean; method?: PayMethod }) =>
+      payTopup(dataset, session!, openId!, opts.method ?? method!, {
         declared: opts.declared,
         simulate:
           (localStorage.getItem(SIMULATE_KEY) as 'FULL' | 'PARTIAL' | null) ??
@@ -263,6 +271,11 @@ export function PublicRentPage({ token: dataset }: { token: string }) {
         <RentRecord
           rent={rent}
           candidateIso={mode.kind === 'picking' ? candidateIso : null}
+          onSend={async (channel) => {
+            const r = await sendInvoice(dataset, session, openId, channel)
+            await qc.invalidateQueries({ queryKey: ['public-rent', dataset] })
+            return r.sentTo
+          }}
         />
       </main>
       <Console
@@ -284,7 +297,12 @@ export function PublicRentPage({ token: dataset }: { token: string }) {
         onPick={setCandidateIso}
         onConfirmExtend={() => extendM.mutate()}
         onPickMethod={setMethod}
-        onConfirmMethod={() => payM.mutate({})}
+        // У юрлица способ не выбирается — он один, и консоль показывает не
+        // список, а кнопку. Ставим его здесь, чтобы запрос не уходил с `null`.
+        onConfirmMethod={() => {
+          if (rent.legal) setMethod('INVOICE')
+          payM.mutate({ method: rent.legal ? 'INVOICE' : undefined })
+        }}
         onDeclarePaid={() => payM.mutate({ declared: true })}
         onReload={reload}
       />

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Loader2, LockKeyhole, ShieldCheck } from 'lucide-react'
 import {
   PublicRentError,
+  fetchDemoCredentials,
   requestCode,
   verifyCode,
   type PublicFailure,
@@ -15,8 +16,8 @@ import { BrandMark } from './BrandMark'
  * знает об аренде ничего и показать ей нечего.
  *
  * Фирменная шапка не украшение: клиент приходит по ссылке из мессенджера на
- * незнакомый домен, и первое, что он должен опознать, — Будпрокат. Дальше, на
- * самих арендах, бренд уходит и остаётся хром системы.
+ * незнакомый домен, и первое, что он должен опознать, — компанию, у которой
+ * арендует. Дальше, на самих арендах, бренд уходит и остаётся хром системы.
  */
 export function GateScreen({
   dataset,
@@ -33,6 +34,31 @@ export function GateScreen({
   const [failure, setFailure] = useState<PublicFailure | null>(null)
   const [resendAt, setResendAt] = useState(0)
   const codeRef = useRef<HTMLInputElement>(null)
+
+  /**
+   * ⚠️ ТОЛЬКО ПРОТОТИП. Оба поля приезжают заполненными: показ не должен
+   * начинаться с набора чужого номера и шестизначного кода на чужом телефоне.
+   * Поля остаются обычными — их можно стереть и ввести своё, чтобы показать
+   * невірний код или незнайомий номер. В проде этого запроса нет: код знает
+   * только владелец номера.
+   */
+  const [demoCode, setDemoCode] = useState('')
+  useEffect(() => {
+    let alive = true
+    void fetchDemoCredentials(dataset)
+      .then((d) => {
+        if (!alive) return
+        setPhone((v) => (v === '' ? d.phone : v))
+        setDemoCode(d.code)
+      })
+      .catch(() => {
+        // Набора нет (или он отвечает 404) — показываем пустую форму, как в
+        // проде. Отдельного сообщения тут не нужно: следующий шаг всё скажет.
+      })
+    return () => {
+      alive = false
+    }
+  }, [dataset])
 
   const lockUntil = failure?.code === 'LOCKED' ? failure.lockedUntil : 0
   const [now, setNow] = useState(() => Date.now())
@@ -69,7 +95,7 @@ export function GateScreen({
       setResendAt(Date.now() + r.resendAfter * 1000)
       if (advance) {
         setStep('code')
-        setCode('')
+        setCode(demoCode)
       }
     })
 
@@ -176,8 +202,10 @@ export function GateScreen({
               className="h-12 rounded-md border border-border-strong bg-card px-3 text-center text-[22px] tracking-[0.4em] tabular-nums text-fg transition-colors placeholder:tracking-[0.3em] placeholder:text-subtle focus:border-border-focus focus:outline-none aria-[invalid=true]:border-danger"
             />
             <GateError id="pr-code-error" failure={failure} />
-            {import.meta.env.DEV && (
-              <p className="text-label text-subtle">Прототип: код 424242</p>
+            {demoCode !== '' && (
+              <p className="text-label text-subtle">
+                Прототип: код {demoCode} підставлено
+              </p>
             )}
             <div className="flex flex-col items-start gap-3 pt-4">
               <GateButton pending={pending} disabled={code.length < 6}>
