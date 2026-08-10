@@ -91,8 +91,6 @@ GitHub Pages, воркфлоу `.github/workflows/deploy.yml`. Пуш у `main` 
 
 ## Звідки код
 
-Гілка `yuliia/BP-1089-public-rent-selfservice` у `evolute-studio/budprokat-crm`,
-де сторінка живе на роутах `/o` і `/o/$token`. Сюди перенесено фічу
-(`src/features/public-rent/`), її моки й токени дизайн-системи — без решти CRM.
-Матеріали, скріншоти й відкриті питання — `04-assets/prototypes/bp-1089-public-rent/`
-у docs-репозиторії.
+Витяг з робочої гілки основної системи, де сторінка живе на роутах `/o` і
+`/o/$token`. Сюди перенесено саму фічу (`src/features/public-rent/`), її моки й
+токени дизайн-системи — без решти застосунку.

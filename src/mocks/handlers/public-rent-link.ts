@@ -7,10 +7,10 @@ import {
 } from '../fixtures/public-rent-link'
 
 /**
- * MSW для публичной страницы самообслуживания (прототип, дейли 07.08.2026).
+ * MSW для публичной страницы самообслуживания (прототип).
  *
- * Пути — legacy-префикс `/api/public/*`, НЕ `/api/v1/*`: страница не должна
- * затенять реальный бэкенд и не проходит через `guardV1Shadows`.
+ * Пути — отдельный префикс `/api/public/*`, не внутренний API: у страницы нет
+ * сессии сотрудника, и затенять реальный бэкенд она не должна.
  *
  * Вход — по номеру: код уходит на номер, сессия открывает ВСЕ аренды этого
  * номера. Ссылка ничего не открывает и не протухает, поэтому TTL ссылки в
@@ -29,7 +29,7 @@ const MAX_ATTEMPTS = 5
 /** Не чаще одной отправки в минуту и не больше пяти в сутки: SMS платные. */
 const RESEND_COOLDOWN_MS = 60_000
 const MAX_SENDS_PER_DAY = 5
-/** Через сколько «бухгалтер проводит платёж в 1С» после выпуска счёта. */
+/** Через сколько «бухгалтер проводит платёж» после выпуска счёта. */
 const BANK_CONFIRM_MS = 12_000
 
 type PayMethod = 'DEPOSIT_OFFSET' | 'BALANCE' | 'BANK' | 'CARD'
@@ -43,9 +43,9 @@ interface Topup {
   invoiceNo: string
   method: PayMethod | null
   status: PayStatus
-  /** Момент, после которого признак оплаты приходит из 1С. */
+  /** Момент, после которого признак оплаты приходит из учётной системы. */
   settleAfter: number | null
-  /** Что придёт из 1С — полная сумма или часть. Тумблер прототипа. */
+  /** Что придёт из учётной системы — вся сумма или часть. Тумблер прототипа. */
   simulate: 'FULL' | 'PARTIAL'
 }
 
@@ -117,7 +117,7 @@ function code() {
 function settle(t: Topup): PayStatus {
   if (t.status !== 'AWAITING' || t.settleAfter == null) return t.status
   if (Date.now() < t.settleAfter) return t.status
-  // Клиент нажал «оплату виконано». Из 1С приходит СУММА зачисления, а не
+  // Клиент нажал «оплату виконано». Из учётной системы приходит СУММА, а не
   // булево «оплачено»: недоплата обязана оставлять счёт живым, иначе страница
   // виснет в ожидании навсегда — самый острый кейс, названный техлидом.
   if (t.simulate === 'PARTIAL') {
@@ -173,7 +173,7 @@ function hideCompany(ds: PublicDataset, payload: PublicRentPayload) {
  * Префикс путей. `BASE_URL` — прототипная добавка: на GitHub Pages сайт лежит в
  * `/<repo>/`, service worker получает scope этой папки, и запрос к корневому
  * `/api/public/*` ушёл бы мимо моков. Локально `BASE_URL` = `/` — путь ровно
- * такой же, как в CRM. Клиент строит адрес тем же способом (`api.ts`).
+ * такой же, как в основной системе. Клиент строит адрес так же (`api.ts`).
  */
 const P = `${import.meta.env.BASE_URL}api/public/:dataset`
 
@@ -219,7 +219,7 @@ export const publicRentLinkHandlers = [
     return HttpResponse.json({
       sent: true,
       // Каскад Viber → Telegram → SMS. В прототипе всегда первый канал:
-      // умеет ли это Turbo SMS «из коробки» — вопрос к Березану.
+      // умеет ли это SMS-шлюз «из коробки» — вопрос к разработке.
       channel: 'VIBER',
       phoneMasked: `+380 (${phoneKey(phone).slice(0, 2)}) ***-${phoneKey(phone).slice(5, 7)}-${phoneKey(phone).slice(7, 9)}`,
       resendAfter: Math.round(RESEND_COOLDOWN_MS / 1000),
@@ -442,7 +442,7 @@ export const publicRentLinkHandlers = [
     })
   }),
 
-  /** Признак оплаты приходит из 1С — страница его только читает. */
+  /** Признак оплаты приходит из учётной системы — страница его только читает. */
   http.get(`${P}/rents/:id/payment`, async ({ params, request }) => {
     const data = findDataset(params)
     if (!data) return HttpResponse.json({ code: 'NOT_FOUND' }, { status: 404 })

@@ -3,9 +3,9 @@
  *
  * THESIS: сторінка, де дія не подорожує екраном. Відмовляється від стандартної
  *   мобільної стрічки карток із CTA десь унизу документа.
- * OWN-WORLD: система BP Space без змін — Inter, 13px тіло, hairline #e1ddd9,
- *   плоскі поверхні, колір лише як стан. Бренд-navy живе рівно на одному
- *   екрані до верифікації.
+ * OWN-WORLD: дизайн-система основної системи без змін — Inter, 13px тіло,
+ *   hairline #e1ddd9, плоскі поверхні, колір лише як стан. Бренд-navy живе
+ *   рівно на одному екрані до верифікації.
  * STORY: клієнт входить за своїм номером, бачить усі свої оренди, відкриває ту,
  *   що спливає, продовжує строк і платить, не телефонуючи.
  * FIRST VIEWPORT: navy-шапка з логотипом і обіцянкою «Ваші оренди», під нею
@@ -13,7 +13,7 @@
  * FORM: консоль під великий палець — кандидат 7 з упорядкованого списку,
  *   seed 925c1388.
  * FINISH: unreviewed and undocumented is unfinished; this build ends with the
- *   finish review, the verdict, and DESIGN.md
+ *   finish review and the verdict.
  */
 import { useCallback, useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -97,8 +97,9 @@ export function PublicRentPage({ token: dataset }: { token: string }) {
     if (unauthorized(sessionQ.error) || unauthorized(rentQ.error)) signOut()
   }, [sessionQ.error, rentQ.error, signOut])
 
-  // Признак «счёт оплачен» приходит из 1С — страница его опрашивает, пока
-  // висит ожидание, и ни менеджер, ни клиент для этого ничего не делают.
+  // Признак «счёт оплачен» приходит из учётной системы — страница опрашивает
+  // его, пока висит ожидание, и ни менеджер, ни клиент для этого ничего не
+  // делают.
   useEffect(() => {
     if (status !== 'AWAITING' || !session || !openId) return
     const id = window.setInterval(() => {
@@ -440,7 +441,7 @@ const SCENARIOS: Array<{ token: string; label: string }> = [
 ]
 
 /**
- * В CRM панель жила под `import.meta.env.DEV` — там прод-сборка идёт клиенту.
+ * В основной системе панель жила под `import.meta.env.DEV` — там прод-сборка идёт клиенту.
  * Здесь прод-сборка и есть демо: без переключателей развилку оплаты Б не
  * показать вообще, а сценарий пришлось бы диктовать адресом. Убирается
  * параметром `?clean` — для показа, где переключатели мешают.
@@ -449,7 +450,7 @@ function showDemoBar(): boolean {
   return !new URLSearchParams(window.location.search).has('clean')
 }
 
-/** Переключатели сценария, развилки оплаты и ответа 1С. */
+/** Переключатели сценария, развилки оплаты и ответа учётной системы. */
 function DevBar({
   dataset,
   payMode,
@@ -491,7 +492,13 @@ function DevBar({
         <select
           id="pr-paymode"
           value={payMode}
-          onChange={(e) => onPayMode(e.target.value as PayMode)}
+          onChange={(e) => {
+            onPayMode(e.target.value as PayMode)
+            // Перезагрузка, как у переключателя сценария. Состояние моков —
+            // выпущенные счета, сессии — живёт в памяти вкладки, и без сброса
+            // развилка Б показывалась бы поверх следов прогона по А.
+            window.location.reload()
+          }}
           className="h-control flex-1 rounded-md border border-border-strong bg-card px-2 text-label text-fg"
         >
           <option value="BANKS">А — наші банки, без комісії</option>
